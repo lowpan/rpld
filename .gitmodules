@@ -1,0 +1,3 @@
+[submodule "crypto/kyber"]
+	path = crypto/kyber
+	url = https://github.com/lowpan/kyber.git
