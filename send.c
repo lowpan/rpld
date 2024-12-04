@@ -28,8 +28,8 @@
 #include "rpl.h"
 
 static int really_send(int sock, const struct iface *iface,
-		       const struct in6_addr *dest,
-		       struct safe_buffer *sb)
+					   const struct in6_addr *dest,
+					   struct safe_buffer *sb)
 {
 	struct sockaddr_in6 addr;
 	int rc;
@@ -68,6 +68,8 @@ static int really_send(int sock, const struct iface *iface,
 	mhdr.msg_control = (void *)cmsg;
 	mhdr.msg_controllen = sizeof(chdr);
 
+	flog(LOG_INFO, "Sending message, message header.len: %d; mhdr.msg_iov.iov_len: %lu", mhdr.msg_namelen, mhdr.msg_iov->iov_len);
+
 	rc = sendmsg(sock, &mhdr, 0);
 	safe_buffer_free(sb);
 
@@ -84,7 +86,7 @@ void send_dio(int sock, struct dag *dag)
 
 	dag_build_dio(dag, sb);
 	rc = really_send(sock, dag->iface, &all_rpl_addr, sb);
-	flog(LOG_INFO, "foo! %s %d %s", dag->iface->ifname, rc ,strerror(errno));
+	flog(LOG_INFO, "foo! %s %d %s", dag->iface->ifname, rc, strerror(errno));
 }
 
 void send_dao(int sock, const struct in6_addr *to, struct dag *dag)
@@ -127,4 +129,19 @@ void send_dis(int sock, struct iface *iface)
 	dag_build_dis(sb);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
 	flog(LOG_INFO, "send_dis! %d", rc);
+}
+
+void send_pk(int sock, struct iface *iface)
+{
+	flog(LOG_INFO, "Sending PK in iface: %s", iface->ifname);
+	struct safe_buffer *sb;
+	int rc;
+
+	sb = safe_buffer_new();
+	if (!sb)
+		return;
+
+	dag_build_pk(sb);
+	rc = really_send(sock, iface, &all_rpl_addr, sb);
+	flog(LOG_INFO, "send_pk! %d", rc);
 }

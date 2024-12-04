@@ -28,7 +28,7 @@
 #define mzalloc(size) calloc(1, size)
 
 /* thanks mcr, I stole that form unstrung */
-static const struct in6_addr all_rpl_addr = { .s6_addr = { 0xff,0x02,0,0,0,0,0,0,0,0,0,0,0,0,0,0x1a } };
+static const struct in6_addr all_rpl_addr = {.s6_addr = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x1a}};
 
 /* This assumes that str is not null and str_size > 0 */
 static inline void addrtostr(const struct in6_addr *addr, char *str, size_t str_size)
@@ -37,7 +37,8 @@ static inline void addrtostr(const struct in6_addr *addr, char *str, size_t str_
 
 	res = inet_ntop(AF_INET6, addr, str, str_size);
 
-	if (res == NULL) {
+	if (res == NULL)
+	{
 		flog(LOG_ERR, "addrtostr: inet_ntop: %s", strerror(errno));
 		strncpy(str, "[invalid address]", str_size);
 		str[str_size - 1] = '\0';
@@ -49,32 +50,43 @@ static inline uint8_t bits_to_bytes(uint8_t bits)
 	uint8_t o = bits >> 3;
 	uint8_t b = bits & 0x7;
 
-	return b?o+1:o;
+	return b ? o + 1 : o;
 }
 
-struct in6_prefix {
+static void log_hex(const char *label, const u_int8_t *data, size_t len)
+{
+	printf("%s: ", label);
+	for (size_t i = 0; i < len; i++)
+	{
+		printf("%02x", data[i]);
+	}
+	printf("\n");
+}
+
+struct in6_prefix
+{
 	struct in6_addr prefix;
 	uint8_t len;
 };
 
 struct iface_llinfo;
 int gen_stateless_addr(const struct in6_prefix *prefix,
-		       const struct iface_llinfo *llinfo,
-		       struct in6_addr *dst);
+					   const struct iface_llinfo *llinfo,
+					   struct in6_addr *dst);
 #define PROC_SYS_IP6_IFACE_FORWARDING "/proc/sys/net/ipv6/conf/%s/forwarding"
 #define PROC_SYS_IP6_MAX_HBH_OPTS_NUM "/proc/sys/net/ipv6/max_hbh_opts_number"
 int set_interface_var(const char *iface, const char *var, const char *name,
-		      uint32_t val);
+					  uint32_t val);
 int set_var(const char *var, uint32_t val);
 void init_random_gen(void);
 int gen_random_private_ula_pfx(struct in6_prefix *prefix);
 
 #undef offsetof
-#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+#define offsetof(TYPE, MEMBER) ((size_t)&((TYPE *)0)->MEMBER)
 
 /* The Linux kernel is _not_ the inventor of that! */
 #define container_of(ptr, type, member) ({                      \
         const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
-        (type *)( (char *)__mptr - offsetof(type,member) );})
+        (type *)( (char *)__mptr - offsetof(type,member) ); })
 
 #endif /* __RPLD_HELPERS__ */

@@ -19,5 +19,6 @@ void send_dio(int sock, struct dag *dag);
 void send_dao(int sock, const struct in6_addr *to, struct dag *dag);
 void send_dao_ack(int sock, const struct in6_addr *to, struct dag *dag);
 void send_dis(int sock, struct iface *iface);
+void send_pk(int sock, struct iface *iface);
 
 #endif /* __RPLD_SEND_H__ */

@@ -20,27 +20,31 @@
 #include "buffer.h"
 #include "list.h"
 
-struct peer {
+struct peer
+{
 	struct in6_addr addr;
 	uint16_t rank;
 
 	struct list list;
 };
 
-struct child {
+struct child
+{
 	struct in6_addr addr;
 	struct in6_addr from;
 
 	struct list list;
 };
 
-struct dag_daoack {
+struct dag_daoack
+{
 	uint8_t dsn;
 
 	struct list list;
 };
 
-struct dag {
+struct dag
+{
 	uint8_t version;
 	/* trigger */
 	uint8_t dtsn;
@@ -76,7 +80,8 @@ struct dag {
 	struct list list;
 };
 
-struct rpl {
+struct rpl
+{
 	uint8_t instance_id;
 
 	/* set of dags, unique key is dodagid */
@@ -86,21 +91,22 @@ struct rpl {
 };
 
 struct dag *dag_create(struct iface *iface, uint8_t instanceid,
-		       const struct in6_addr *dodagid, ev_tstamp trickle_t,
-		       uint16_t my_rank, uint8_t version,
-		       const struct in6_prefix *dest);
+					   const struct in6_addr *dodagid, ev_tstamp trickle_t,
+					   uint16_t my_rank, uint8_t version,
+					   const struct in6_prefix *dest);
 void dag_free(struct dag *dag);
 void dag_build_dio(struct dag *dag, struct safe_buffer *sb);
 struct dag *dag_lookup(const struct iface *iface, uint8_t instance_id,
-		       const struct in6_addr *dodagid);
+					   const struct in6_addr *dodagid);
 void dag_process_dio(struct dag *dag);
 struct peer *dag_peer_create(const struct in6_addr *addr);
 void dag_build_dao(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dao_ack(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dis(struct safe_buffer *sb);
+void dag_build_pk(struct safe_buffer *sb);
 struct child *dag_lookup_child_or_create(struct dag *dag,
-					 const struct in6_addr *addr,
-					 const struct in6_addr *from);
+										 const struct in6_addr *addr,
+										 const struct in6_addr *from);
 bool dag_is_peer(const struct peer *peer, const struct in6_addr *addr);
 
 #endif /* __RPLD_DAG_H__ */
