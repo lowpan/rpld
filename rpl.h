@@ -31,7 +31,8 @@ enum ND_RPL_CODE
     ND_RPL_SEC_DAG = 0x82,
     ND_RPL_SEC_DAG_ACK = 0x83,
     ND_RPL_SEC_CONSIST = 0x84,
-    ND_RPL_SEC_EXCH = 0x90,
+    ND_RPL_SEC_PK_EXCH = 0x90,
+    ND_RPL_SEC_CT_EXCH = 0x91,
 };
 
 enum ND_RPL_DIO_FLAGS
@@ -63,12 +64,24 @@ struct nd_rpl_security
     u_int8_t rpl_sec_ki[0]; /* depends upon kim */
 } PACKED;
 
-struct nd_rpl_sec_keys
+#ifndef RPL_SEC_H
+#define RPL_SEC_H
+
+struct nd_rpl_sender_keys
 {
     u_int8_t rpl_sec_pkey[CRYPTO_PUBLICKEYBYTES]; /* Public Key */
-    u_int8_t rpl_sec_skey[CRYPTO_SECRETKEYBYTES]; /* Secret Key (used by sender) */
-    u_int8_t rpl_sec_sskey[CRYPTO_BYTES];         /* Shared Secret */
+    u_int8_t rpl_sec_skey[CRYPTO_SECRETKEYBYTES]; /* Secret Key */
 } PACKED;
+
+struct nd_rpl_receiver_keys
+{
+    u_int8_t rpl_sec_ckey[CRYPTO_CIPHERTEXTBYTES]; /* Cipher Text */
+    u_int8_t rpl_sec_sskey[CRYPTO_BYTES];          /* Shared Secret */
+} PACKED;
+
+static u_int8_t shared_secret[CRYPTO_BYTES];
+extern struct nd_rpl_sender_keys sender_keys;
+#endif
 
 struct nd_rpl_opt
 {

@@ -19,10 +19,10 @@
 #include <linux/ipv6.h>
 #include <netinet/in.h>
 
-#define MSG_SIZE_RECV 1500
+#define MSG_SIZE_RECV 5000
 
 int recv_rs_ra(int sock, unsigned char *msg, struct sockaddr_in6 *addr,
-	       struct in6_pktinfo **pkt_info, int *hoplimit,
-	       unsigned char *chdr);
+			   struct in6_pktinfo **pkt_info, int *hoplimit,
+			   unsigned char *chdr);
 
 #endif /* __RPLD_RECV_H__ */

@@ -255,6 +255,46 @@ static void process_dis(int sock, struct iface *iface, const void *msg,
 	}
 }
 
+/**
+ * @brief
+ *
+ * @param sock int representing the socket
+ * @param iface interface structure
+ * @param msg received data from the ICMPv6 packet
+ * @param len length of the received data
+ * @param addr Socket address
+ */
+static void process_pk_sec_exch(int sock, struct iface *iface, const void *msg,
+								size_t len)
+{
+	u_int8_t pk[CRYPTO_PUBLICKEYBYTES];
+	if (len < CRYPTO_PUBLICKEYBYTES)
+	{
+		flog(LOG_WARNING, "received packet too short for public key exchange");
+		return;
+	}
+	memcpy(pk, msg, CRYPTO_PUBLICKEYBYTES);
+	log_hex("Saved Received Public Key: ", pk, CRYPTO_PUBLICKEYBYTES);
+
+	send_ct(sock, iface, &pk);
+}
+
+static void process_ct_sec_exch(const void *msg, size_t len)
+{
+	u_int8_t ct[CRYPTO_CIPHERTEXTBYTES];
+	if (len < CRYPTO_CIPHERTEXTBYTES)
+	{
+		flog(LOG_WARNING, "received packet too short for ciphertext exchange");
+		return;
+	}
+	memcpy(ct, msg, CRYPTO_CIPHERTEXTBYTES);
+	log_hex("Received Ciphertext: ", ct, CRYPTO_CIPHERTEXTBYTES);
+
+	log_hex("Using static Secret Key to decapsulate", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
+	crypto_kem_dec(shared_secret, ct, sender_keys.rpl_sec_skey);
+	log_hex("Decapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
+}
+
 void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 			 int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
 			 int hoplimit)
@@ -320,8 +360,18 @@ void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 	case ND_RPL_DAO_ACK:
 		process_daoack(sock, iface, &icmph->icmp6_dataun, len, addr);
 		break;
-	case ND_RPL_SEC_EXCH:
-		flog(LOG_INFO, "received sec exch %s", addr_str);
+	case ND_RPL_SEC_PK_EXCH:
+		flog(LOG_INFO, "Received ICMPv6 pk_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
+			 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
+		log_hex("ICMPv6 data received: ", &icmph->icmp6_dataun, len);
+		process_pk_sec_exch(sock, iface, &icmph->icmp6_dataun, len);
+		break;
+	case ND_RPL_SEC_CT_EXCH:
+		flog(LOG_INFO, "Received ICMPv6 ct_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
+			 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
+		log_hex("ICMPv6 data received: ", &icmph->icmp6_dataun, len);
+		process_ct_sec_exch(&icmph->icmp6_dataun, len);
+		break;
 	default:
 		flog(LOG_ERR, "%s received unsupported RPL code 0x%02x",
 			 if_name, icmph->icmp6_code);

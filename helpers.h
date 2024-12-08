@@ -55,10 +55,10 @@ static inline uint8_t bits_to_bytes(uint8_t bits)
 
 static void log_hex(const char *label, const u_int8_t *data, size_t len)
 {
-	printf("%s: ", label);
+	printf("%s with lenght %lu: ", label, len);
 	for (size_t i = 0; i < len; i++)
 	{
-		printf("%02x", data[i]);
+		printf("%02X", data[i]);
 	}
 	printf("\n");
 }

@@ -429,14 +429,30 @@ void dag_build_dis(struct safe_buffer *sb)
 
 void dag_build_pk(struct safe_buffer *sb)
 {
-	struct nd_rpl_sec_keys keys = {};
+	dag_build_icmp(sb, ND_RPL_SEC_PK_EXCH);
 
-	dag_build_icmp(sb, ND_RPL_SEC_EXCH);
+	crypto_kem_keypair(sender_keys.rpl_sec_pkey, sender_keys.rpl_sec_skey);
+	log_hex("Saved static Public Key", sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
+	log_hex("Saved static Secret Key ", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
 
-	crypto_kem_keypair(keys.rpl_sec_pkey, keys.rpl_sec_skey);
-	log_hex("Public Key", keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
-	log_hex("Secret Key", keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
+	safe_buffer_append(sb, &sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
 
-	safe_buffer_append(sb, &keys, sizeof(keys));
+	log_hex("Saved static Public Key after sb append", sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
+	log_hex("Saved static Secret Key after sb append", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
 	flog(LOG_INFO, "build pk");
+}
+
+void dag_build_ct(struct safe_buffer *sb, const u_int8_t pk[CRYPTO_PUBLICKEYBYTES])
+{
+	struct nd_rpl_receiver_keys keys = {};
+
+	dag_build_icmp(sb, ND_RPL_SEC_CT_EXCH);
+
+	crypto_kem_enc(keys.rpl_sec_ckey, keys.rpl_sec_sskey, pk);
+	log_hex("Cipher Text: ", keys.rpl_sec_ckey, CRYPTO_CIPHERTEXTBYTES);
+	log_hex("Encapsulated Shared Secret: ", keys.rpl_sec_sskey, CRYPTO_BYTES);
+
+	memcpy(&keys.rpl_sec_sskey, shared_secret, CRYPTO_BYTES);
+
+	safe_buffer_append(sb, &keys.rpl_sec_ckey, CRYPTO_CIPHERTEXTBYTES);
 }

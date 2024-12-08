@@ -20,6 +20,8 @@
 #include "buffer.h"
 #include "list.h"
 
+#include "crypto/kyber/ref/kem.h"
+
 struct peer
 {
 	struct in6_addr addr;
@@ -104,6 +106,7 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dao_ack(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dis(struct safe_buffer *sb);
 void dag_build_pk(struct safe_buffer *sb);
+void dag_build_ct(struct safe_buffer *sb, const u_int8_t pk[CRYPTO_PUBLICKEYBYTES]);
 struct child *dag_lookup_child_or_create(struct dag *dag,
 										 const struct in6_addr *addr,
 										 const struct in6_addr *from);
