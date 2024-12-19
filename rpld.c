@@ -35,6 +35,8 @@
 
 static struct list_head ifaces;
 static int sock;
+static ev_async icmpv6_async;
+static ev_io sock_watcher;
 
 /* TODO overwrite root setting */
 static char usage_str[] = {
@@ -54,6 +56,7 @@ static void usage(FILE *o, const char *pname)
 
 static void icmpv6_cb(EV_P_ ev_io *w, int revents)
 {
+	flog(LOG_INFO, "icmpv6_cb");
 	int len, hoplimit;
 	struct sockaddr_in6 rcv_addr;
 	struct in6_pktinfo *pkt_info = NULL;
@@ -64,6 +67,44 @@ static void icmpv6_cb(EV_P_ ev_io *w, int revents)
 	if (len > 0 && pkt_info)
 	{
 		process(sock, &ifaces, msg, len, &rcv_addr, pkt_info, hoplimit);
+	}
+	else if (!pkt_info)
+	{
+		dlog(LOG_INFO, 4, "recv_rs_ra returned null pkt_info");
+	}
+	else if (len <= 0)
+	{
+		dlog(LOG_INFO, 4, "recv_rs_ra returned len <= 0: %d", len);
+	}
+}
+
+static void icmpv6_async_cb(EV_P_ ev_async *w, int revents)
+{
+	flog(LOG_INFO, "icmpv6_async_cb");
+	// ev_io sock_watcher;
+
+	// Reinitialize the socket watcher for ICMPv6 handling
+	ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
+	ev_io_start(loop, &sock_watcher);
+
+	ev_run(loop, 0);
+
+	// ev_io_start(loop, &sock_watcher);
+}
+
+static void key_exchange_cb(EV_P_ ev_io *w, int revents)
+{
+	flog(LOG_INFO, "key_exchange_cb");
+	int len, hoplimit;
+	struct sockaddr_in6 rcv_addr;
+	struct in6_pktinfo *pkt_info = NULL;
+	unsigned char msg[MSG_SIZE_RECV];
+	unsigned char chdr[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(int))];
+
+	len = recv_rs_ra(sock, msg, &rcv_addr, &pkt_info, &hoplimit, chdr);
+	if (len > 0 && pkt_info)
+	{
+		process_exchange(sock, &ifaces, msg, len, &rcv_addr, pkt_info, hoplimit, loop, w);
 	}
 	else if (!pkt_info)
 	{
@@ -95,8 +136,17 @@ static void send_dis_cb(EV_P_ ev_timer *w, int revents)
 	flog(LOG_INFO, "iface %s", iface->ifname);
 
 	ev_timer_stop(loop, w);
+
 	send_pk(sock, iface);
+	// ev_io sock_watcher;
+	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
+	ev_io_start(loop, &sock_watcher);
+
+	ev_run(loop, 0);
+
+	flog(LOG_INFO, "really sending dis");
 	send_dis(sock, iface);
+	ev_async_send(loop, &icmpv6_async);
 }
 
 /* TODO move somewhere else */
@@ -152,7 +202,6 @@ int main(int argc, char *argv[])
 	const char *pname = argv[0];
 	int facility = LOG_FACILITY;
 	int log_method = L_UNSPEC;
-	ev_io sock_watcher;
 	ev_signal exitsig;
 	int opt;
 	int rc;
@@ -272,8 +321,15 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
-	ev_io_start(loop, &sock_watcher);
+	// Initialize the async watcher for signaling
+	ev_async_init(&icmpv6_async, icmpv6_async_cb);
+	ev_async_start(loop, &icmpv6_async);
+
+	// ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
+	// ev_io_start(loop, &sock_watcher);
+
+	// ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
+	// ev_io_start(loop, &sock_watcher);
 
 	ev_run(loop, 0);
 

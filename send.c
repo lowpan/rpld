@@ -145,7 +145,7 @@ void send_pk(int sock, struct iface *iface)
 
 	dag_build_pk(sb);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
-	flog(LOG_INFO, "send_pk! %d", rc);
+	flog(LOG_INFO, "really sent pk! %d", rc);
 }
 
 void send_ct(int sock, struct iface *iface, u_int8_t pk[CRYPTO_PUBLICKEYBYTES])

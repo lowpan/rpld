@@ -48,12 +48,6 @@ enum ND_RPL_DIO_FLAGS
 #define DAGID_LEN 16
 
 /* section 6 of draft-ietf-roll-rpl-19 */
-/* Isaque: It refers to section 6.1, figure 8
- * rpls_sec_algo refers to the security algorithm, whic, in the RFC is unassignet from 1-255
- * In this implementation, 1 refers to Kyber Encapsulation.
- * Also, created a new value 100 for the KIM, which is the assymetric exchange mode.
- * When KIM = 100, the level indicates the key size in bits (512, 768, 1024 for kyber).
- */
 struct nd_rpl_security
 {
     u_int8_t rpl_sec_t_reserved; /* bit 7 is T-bit */
