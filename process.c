@@ -1,9 +1,9 @@
 /*
  *   Authors:
- *    Alexander Aring		<alex.aring@gmail.com>
+ *    Alexander Aring           <alex.aring@gmail.com>
  *
  *   Original Authors:
- *    Lars Fenneberg		<lf@elemental.net>
+ *    Lars Fenneberg            <lf@elemental.net>
  *
  *   This software is Copyright 1996,1997,2019 by the above mentioned author(s),
  *   All Rights Reserved.
@@ -16,289 +16,374 @@
 #include <linux/ipv6.h>
 #include <netinet/icmp6.h>
 
+#include <stdio.h>
+
 #include "process.h"
 #include "netlink.h"
 #include "send.h"
 #include "dag.h"
 #include "log.h"
 #include "rpl.h"
+#include "config.h"
+#include "aes.h"
+
+void dagid_to_hex(const uint8_t *rpl_dagid , char *dagid_hex) {
+    for (int i = 0; i < 16; i++) {
+        sprintf(&dagid_hex[i * 2], "%02x", rpl_dagid[i]);
+    }
+    dagid_hex[32] = '\0';
+//     flog(LOG_INFO, "DODAGID em hexadecimal: %s", dagid_hex);
+}
+
+uint8_t* decrypt_dodagid(const char *dagid_hex) {
+    flog(LOG_INFO, "Iniciando a descriptografia do DODAGID");
+
+   //  flog(LOG_INFO, "DODAGID antes da descriptografia %s", dagid_hex);
+
+    const uint8_t* aes_key = get_aes_key();
+    struct AES_ctx ctx;
+    AES_init_ctx(&ctx, aes_key);
+
+    flog(LOG_INFO, "Chave AES inicializada com sucesso");
+
+    uint8_t data_to_decrypt[16];
+    for (int i = 0; i < 16; i++) {
+        sscanf(&dagid_hex[i * 2], "%02hhx", &data_to_decrypt[i]);
+    }
+
+    AES_ECB_decrypt(&ctx, data_to_decrypt);
+
+    static uint8_t decrypted_data[16];
+    memcpy(decrypted_data, data_to_decrypt, 16);
+
+    flog(LOG_INFO, "Descriptografia do DODAGID concluída");
+
+    /*flog(LOG_INFO, "DODAGID descriptografado: ");
+    for (int i = 0; i < 16; i++) {
+        flog(LOG_INFO, "%02x", decrypted_data[i]);
+    }*/
+
+     return decrypted_data;
+}
 
 static void process_dio(int sock, struct iface *iface, const void *msg,
-			size_t len, struct sockaddr_in6 *addr)
+                        size_t len, struct sockaddr_in6 *addr)
 {
-	const struct nd_rpl_dio *dio = msg;
-	const struct rpl_dio_destprefix *diodp;
-	char addr_str[INET6_ADDRSTRLEN];
-	struct in6_prefix pfx;
-	struct dag *dag;
-	uint16_t rank;
+        struct nd_rpl_dio *dio = msg;
+        const struct rpl_dio_destprefix *diodp;
+        char addr_str[INET6_ADDRSTRLEN];
+        struct in6_prefix pfx;
+        struct dag *dag;
+        uint16_t rank;
 
-	if (len < sizeof(*dio)) {
-		flog(LOG_INFO, "dio length mismatch, drop");
-		return;
-	}
-	len -= sizeof(*dio);
+        if (len < sizeof(*dio)) {
+                flog(LOG_INFO, "dio length mismatch, drop");
+                return;
+        }
+        len -= sizeof(*dio);
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "received dio %s", addr_str);
+        addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+        flog(LOG_INFO, "received dio %s", addr_str);
 
-	dag = dag_lookup(iface, dio->rpl_instanceid,
-			 &dio->rpl_dagid);
-	if (dag) {
-		if (dag->my_rank == 1)
-			return;
-	} else {
-		diodp = (struct rpl_dio_destprefix *)
-			 (((unsigned char *)msg) + sizeof(*dio));
+        char dagid_hex[33];
+        dagid_to_hex((uint8_t *)dio->rpl_dagid.s6_addr, dagid_hex);
+    // flog(LOG_INFO, "Consulta do DODAGID no process.c %s", dagid_hex);
 
-		if (len < sizeof(*diodp) - 16) {
-			flog(LOG_INFO, "diodp length mismatch, drop");
-			return;
-		}
-		len -= sizeof(*diodp) - 16;
+         uint8_t* decrypted_dagid = decrypt_dodagid(dagid_hex);
 
-		if (diodp->rpl_dio_type != 0x3) {
-			flog(LOG_INFO, "we assume diodp - not supported, drop");
-			return;
-		}
+    /*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
+      for (int i = 0; i < 16; i++) {
+     flog(LOG_INFO, "%02x", decrypted_dagid[i]);
+    }*/
 
-		if (len < bits_to_bytes(diodp->rpl_dio_prefixlen)) {
-			flog(LOG_INFO, "diodp prefix length mismatch, drop");
-			return;
-		}
-		len -= bits_to_bytes(diodp->rpl_dio_prefixlen);
+         memcpy(dio->rpl_dagid.s6_addr, decrypted_dagid, 16); 
 
-		pfx.len = diodp->rpl_dio_prefixlen;
-		memcpy(&pfx.prefix, &diodp->rpl_dio_prefix,
-		       bits_to_bytes(pfx.len));
+        dag = dag_lookup(iface, dio->rpl_instanceid,
+                         &dio->rpl_dagid);
 
-		flog(LOG_INFO, "received but no dag found %s", addr_str);
-		dag = dag_create(iface, dio->rpl_instanceid,
-				 &dio->rpl_dagid, DEFAULT_TICKLE_T,
-				 UINT16_MAX, dio->rpl_version, &pfx);
-		if (!dag)
-			return;
+        if (dag) {
+                if (dag->my_rank == 1)
+                        return;
+        } else {
+                diodp = (struct rpl_dio_destprefix *)
+                         (((unsigned char *)msg) + sizeof(*dio));
 
-		addrtostr(&dio->rpl_dagid, addr_str, sizeof(addr_str));
-		flog(LOG_INFO, "created dag %s", addr_str);
-	}
+                if (len < sizeof(*diodp) - 16) {
+                        flog(LOG_INFO, "diodp length mismatch, drop");
+                        return;
+                }
+                len -= sizeof(*diodp) - 16;
 
-	flog(LOG_INFO, "process dio %s", addr_str);
+                if (diodp->rpl_dio_type != 0x3) {
+                        flog(LOG_INFO, "we assume diodp - not supported, drop");
+                        return;
+                }
 
-	rank = ntohs(dio->rpl_dagrank);
-	if (!dag->parent) {
-		dag->parent = dag_peer_create(&addr->sin6_addr);
-		if (!dag->parent)
-			return;
-	}
+                if (len < bits_to_bytes(diodp->rpl_dio_prefixlen)) {
+                        flog(LOG_INFO, "diodp prefix length mismatch, drop");
+                        return;
+                }
+                len -= bits_to_bytes(diodp->rpl_dio_prefixlen);
 
-	if (rank > dag->parent->rank)
-		return;
+                pfx.len = diodp->rpl_dio_prefixlen;
+                memcpy(&pfx.prefix, &diodp->rpl_dio_prefix,
+                       bits_to_bytes(pfx.len));
 
-	dag->parent->rank = rank;
-	dag->my_rank = rank + 1;
+                flog(LOG_INFO, "received but no dag found %s", addr_str);
 
-	dag_process_dio(dag);
+                dag = dag_create(iface, dio->rpl_instanceid,
+                                 &dio->rpl_dagid, DEFAULT_TICKLE_T,
+                                 UINT16_MAX, dio->rpl_version, &pfx);
+                if (!dag)
+                        return;
 
-	if (dag->parent)
-		send_dao(sock, &dag->parent->addr, dag);
+                addrtostr(&dio->rpl_dagid, addr_str, sizeof(addr_str));
+                flog(LOG_INFO, "created dag %s", addr_str);
+        }
+
+        flog(LOG_INFO, "process dio %s", addr_str);
+
+        rank = ntohs(dio->rpl_dagrank);
+        if (!dag->parent) {
+                dag->parent = dag_peer_create(&addr->sin6_addr);
+                if (!dag->parent)
+                        return;
+        }
+
+        if (rank > dag->parent->rank)
+                return;
+
+        dag->parent->rank = rank;
+        dag->my_rank = rank + 1;
+
+        dag_process_dio(dag);
+
+        if (dag->parent)
+                send_dao(sock, &dag->parent->addr, dag);
 }
 
 static void process_dao(int sock, struct iface *iface, const void *msg,
-			size_t len, struct sockaddr_in6 *addr)
+                        size_t len, struct sockaddr_in6 *addr)
 {
-	const struct rpl_dao_target *target;
-	const struct nd_rpl_dao *dao = msg;
-	char addr_str[INET6_ADDRSTRLEN];
-	const struct nd_rpl_opt *opt;
-	const unsigned char *p;
-	struct child *child;
-	struct dag *dag;
-	struct list *c;
-	int optlen;
-	int rc;
+        const struct rpl_dao_target *target;
+        const struct nd_rpl_dao *dao = msg;
+        char addr_str[INET6_ADDRSTRLEN];
+        const struct nd_rpl_opt *opt;
+        const unsigned char *p;
+        struct child *child;
+        struct dag *dag;
+        struct list *c;
+        int optlen;
+        int rc;
 
-	if (len < sizeof(*dao)) {
-		flog(LOG_INFO, "dao length mismatch, drop");
-		return;
-	}
-	len -= sizeof(*dao);
+        if (len < sizeof(*dao)) {
+                flog(LOG_INFO, "dao length mismatch, drop");
+                return;
+        }
+        len -= sizeof(*dao);
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "received dao %s", addr_str);
+        addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+        flog(LOG_INFO, "received dao %s", addr_str);
 
-	dag = dag_lookup(iface, dao->rpl_instanceid,
-			 &dao->rpl_dagid);
-	if (!dag) {
-		addrtostr(&dao->rpl_dagid, addr_str, sizeof(addr_str));
-		flog(LOG_INFO, "can't find dag %s", addr_str);
-		return;
-	}
+        char dagid_hex[33];
+        dagid_to_hex((uint8_t *)dao->rpl_dagid.s6_addr, dagid_hex);
+    // flog(LOG_INFO, "Consulta do DODAGID no process.c %s", dagid_hex);
 
-	p = msg;
-	p += sizeof(*dao);
-	optlen = len;
-	flog(LOG_INFO, "dao optlen %d", optlen);
-	while (optlen > 0) {
-		opt = (const struct nd_rpl_opt *)p;
+        uint8_t* decrypted_dagid = decrypt_dodagid(dagid_hex);
 
-		if (optlen < sizeof(*opt)) {
-			flog(LOG_INFO, "rpl opt length mismatch, drop");
-			return;
-		}
+    /*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
+    for (int i = 0; i < 16; i++) {
+        flog(LOG_INFO, "%02x", decrypted_dagid[i]);
+    }*/
 
-		flog(LOG_INFO, "dao opt %d", opt->type);
-		switch (opt->type) {
-		case RPL_DAO_RPLTARGET:
-			target = (const struct rpl_dao_target *)p;
-			if (optlen < sizeof(*opt)) {
-				flog(LOG_INFO, "rpl target length mismatch, drop");
-				return;
-			}
+        memcpy(dao->rpl_dagid.s6_addr, decrypted_dagid, 16); 
 
-			addrtostr(&target->rpl_dao_prefix, addr_str, sizeof(addr_str));
-			flog(LOG_INFO, "dao target %s", addr_str);
-			dag_lookup_child_or_create(dag,
-						   &target->rpl_dao_prefix,
-						   &addr->sin6_addr);
-			break;
-		default:
-			/* IGNORE NOT SUPPORTED */
-			break;
-		}
 
-		/* TODO critical, we trust opt->len here... which is wire data */
-		optlen -= (2 + opt->len);
-		p += (2 + opt->len);
-		flog(LOG_INFO, "dao optlen %d", optlen);
-	}
+        dag = dag_lookup(iface, dao->rpl_instanceid,
+                         &dao->rpl_dagid);
+        if (!dag) {
+                addrtostr(&dao->rpl_dagid, addr_str, sizeof(addr_str));
+                flog(LOG_INFO, "can't find dag %s", addr_str);
+                return;
+        }
 
-	DL_FOREACH(dag->childs.head, c) {
-		child = container_of(c, struct child, list);
+        p = msg;
+        p += sizeof(*dao);
+        optlen = len;
+        flog(LOG_INFO, "dao optlen %d", optlen);
+        while (optlen > 0) {
+                opt = (const struct nd_rpl_opt *)p;
 
-		rc = nl_add_route_via(dag->iface->ifindex, &child->addr,
-				      &child->from);
-		flog(LOG_INFO, "via route %d %s", rc, strerror(errno));
-	}
+                if (optlen < sizeof(*opt)) {
+                        flog(LOG_INFO, "rpl opt length mismatch, drop");
+                        return;
+                }
 
-	flog(LOG_INFO, "process dao %s", addr_str);
-	send_dao_ack(sock, &addr->sin6_addr, dag);
+                flog(LOG_INFO, "dao opt %d", opt->type);
+                switch (opt->type) {
+                case RPL_DAO_RPLTARGET:
+                        target = (const struct rpl_dao_target *)p;
+                        if (optlen < sizeof(*opt)) {
+                                flog(LOG_INFO, "rpl target length mismatch, drop");
+                                return;
+                        }
+
+                        addrtostr(&target->rpl_dao_prefix, addr_str, sizeof(addr_str));
+                        flog(LOG_INFO, "dao target %s", addr_str);
+                        dag_lookup_child_or_create(dag,
+                                                   &target->rpl_dao_prefix,
+                                                   &addr->sin6_addr);
+                        break;
+                default:
+                        /* IGNORE NOT SUPPORTED */
+                        break;
+                }
+
+                /* TODO critical, we trust opt->len here... which is wire data */
+                optlen -= (2 + opt->len);
+                p += (2 + opt->len);
+                flog(LOG_INFO, "dao optlen %d", optlen);
+        }
+
+        DL_FOREACH(dag->childs.head, c) {
+                child = container_of(c, struct child, list);
+
+                rc = nl_add_route_via(dag->iface->ifindex, &child->addr,
+                                      &child->from);
+                flog(LOG_INFO, "via route %d %s", rc, strerror(errno));
+        }
+
+        flog(LOG_INFO, "process dao %s", addr_str);
+        send_dao_ack(sock, &addr->sin6_addr, dag);
 }
 
 static void process_daoack(int sock, struct iface *iface, const void *msg,
-			   size_t len, struct sockaddr_in6 *addr)
+                           size_t len, struct sockaddr_in6 *addr)
 {
-	const struct nd_rpl_daoack *daoack = msg;
-	char addr_str[INET6_ADDRSTRLEN];
-	struct dag *dag;
-	int rc;
+        const struct nd_rpl_daoack *daoack = msg;
+        char addr_str[INET6_ADDRSTRLEN];
+        struct dag *dag;
+        int rc;
 
-	if (len < sizeof(*daoack)) {
-		flog(LOG_INFO, "rpl daoack length mismatch, drop");
-		return;
-	}
+        if (len < sizeof(*daoack)) {
+                flog(LOG_INFO, "rpl daoack length mismatch, drop");
+                return;
+        }
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "received daoack %s", addr_str);
+        addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+        flog(LOG_INFO, "received daoack %s", addr_str);
 
-	dag = dag_lookup(iface, daoack->rpl_instanceid,
-			 &daoack->rpl_dagid);
-	if (!dag) {
-		addrtostr(&daoack->rpl_dagid, addr_str, sizeof(addr_str));
-		flog(LOG_INFO, "can't find dag %s", addr_str);
-		return;
-	}
+        char dagid_hex[33];
+        dagid_to_hex((uint8_t *)daoack->rpl_dagid.s6_addr, dagid_hex);
+    // flog(LOG_INFO, "Consulta do DODAGID_DAOACK no process.c %s", dagid_hex);
 
-	if (dag->parent) {
-		rc = nl_add_route_default(dag->iface->ifindex, &dag->parent->addr);
-		flog(LOG_INFO, "default route %d %s", rc, strerror(errno));
-	}
+        uint8_t* decrypted_dagid = decrypt_dodagid(dagid_hex);
+
+    /*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
+    for (int i = 0; i < 16; i++) {
+        flog(LOG_INFO, "%02x", decrypted_dagid[i]);
+    }*/
+
+        memcpy(daoack->rpl_dagid.s6_addr, decrypted_dagid, 16); 
+
+        dag = dag_lookup(iface, daoack->rpl_instanceid,
+                         &daoack->rpl_dagid);
+        if (!dag) {
+                addrtostr(&daoack->rpl_dagid, addr_str, sizeof(addr_str));
+                flog(LOG_INFO, "can't find dag %s", addr_str);
+                return;
+        }
+
+        if (dag->parent) {
+                rc = nl_add_route_default(dag->iface->ifindex, &dag->parent->addr);
+                flog(LOG_INFO, "default route %d %s", rc, strerror(errno));
+        }
 
 }
 
 static void process_dis(int sock, struct iface *iface, const void *msg,
-			size_t len, struct sockaddr_in6 *addr)
+                        size_t len, struct sockaddr_in6 *addr)
 {
-	char addr_str[INET6_ADDRSTRLEN];
-	struct list *r, *d;
-	struct rpl *rpl;
-	struct dag *dag;
+        char addr_str[INET6_ADDRSTRLEN];
+        struct list *r, *d;
+        struct rpl *rpl;
+        struct dag *dag;
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "received dis %s", addr_str);
+        addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+        flog(LOG_INFO, "received dis %s", addr_str);
 
-	DL_FOREACH(iface->rpls.head, r) {
-		rpl = container_of(r, struct rpl, list);
-		DL_FOREACH(rpl->dags.head, d) {
-			dag = container_of(d, struct dag, list);
+        DL_FOREACH(iface->rpls.head, r) {
+                rpl = container_of(r, struct rpl, list);
+                DL_FOREACH(rpl->dags.head, d) {
+                        dag = container_of(d, struct dag, list);
 
-			send_dio(sock, dag);
-		}
-	}
+                        send_dio(sock, dag);
+                }
+        }
 }
 
 void process(int sock, const struct list_head *ifaces, unsigned char *msg,
-	     int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
-	     int hoplimit)
+             int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
+             int hoplimit)
 {
-	char addr_str[INET6_ADDRSTRLEN];
-	char if_namebuf[IFNAMSIZ] = {""};
-	char *if_name = if_indextoname(pkt_info->ipi6_ifindex, if_namebuf);
-	if (!if_name) {
-		if_name = "unknown interface";
-	}
-	dlog(LOG_DEBUG, 4, "%s received a packet", if_name);
+        char addr_str[INET6_ADDRSTRLEN];
+        char if_namebuf[IFNAMSIZ] = {""};
+        char *if_name = if_indextoname(pkt_info->ipi6_ifindex, if_namebuf);
+        if (!if_name) {
+                if_name = "unknown interface";
+        }
+        dlog(LOG_DEBUG, 4, "%s received a packet", if_name);
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+        addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
 
-	if (!pkt_info) {
-		flog(LOG_WARNING, "%s received packet with no pkt_info from %s!", if_name, addr_str);
-		return;
-	}
+        if (!pkt_info) {
+                flog(LOG_WARNING, "%s received packet with no pkt_info from %s!", if_name, addr_str);
+                return;
+        }
 
-	/*
-	 * can this happen?
-	 */
+        /*
+         * can this happen?
+         */
 
-	if (len < 4) {
-		flog(LOG_WARNING, "%s received icmpv6 packet with invalid length (%d) from %s", if_name, len, addr_str);
-		return;
-	}
-	len -= 4;
+        if (len < 4) {
+                flog(LOG_WARNING, "%s received icmpv6 packet with invalid length (%d) from %s", if_name, len, addr_str);
+                return;
+        }
+        len -= 4;
 
-	struct icmp6_hdr *icmph = (struct icmp6_hdr *)msg;
-	struct iface *iface = iface_find_by_ifindex(ifaces, pkt_info->ipi6_ifindex);
-	if (!iface) {
-		dlog(LOG_WARNING, 4, "%s received icmpv6 RS/RA packet on an unknown interface with index %d", if_name,
-		     pkt_info->ipi6_ifindex);
-		return;
-	}
+        struct icmp6_hdr *icmph = (struct icmp6_hdr *)msg;
+        struct iface *iface = iface_find_by_ifindex(ifaces, pkt_info->ipi6_ifindex);
+        if (!iface) {
+                dlog(LOG_WARNING, 4, "%s received icmpv6 RS/RA packet on an unknown interface with index %d", if_name,
+                     pkt_info->ipi6_ifindex);
+                return;
+        }
 
-	if (icmph->icmp6_type != ND_RPL_MESSAGE) {
-		/*
-		 *      We just want to listen to RPL
-		 */
+        if (icmph->icmp6_type != ND_RPL_MESSAGE) {
+                /*
+                 *      We just want to listen to RPL
+                 */
 
-		flog(LOG_ERR, "%s icmpv6 filter failed", if_name);
-		return;
-	}
+                flog(LOG_ERR, "%s icmpv6 filter failed", if_name);
+                return;
+        }
 
-	switch (icmph->icmp6_code) {
-	case ND_RPL_DAG_IS:
-		process_dis(sock, iface, &icmph->icmp6_dataun, len, addr);
-		break;
-	case ND_RPL_DAG_IO:
-		process_dio(sock, iface, &icmph->icmp6_dataun, len, addr);
-		break;
-	case ND_RPL_DAO:
-		process_dao(sock, iface, &icmph->icmp6_dataun, len, addr);
-		break;
-	case ND_RPL_DAO_ACK:
-		process_daoack(sock, iface, &icmph->icmp6_dataun, len, addr);
-		break;
-	default:
-		flog(LOG_ERR, "%s received unsupported RPL code 0x%02x",
-		     if_name, icmph->icmp6_code);
-		break;
-	}
+        switch (icmph->icmp6_code) {
+        case ND_RPL_DAG_IS:
+                process_dis(sock, iface, &icmph->icmp6_dataun, len, addr);
+                break;
+        case ND_RPL_DAG_IO:
+                process_dio(sock, iface, &icmph->icmp6_dataun, len, addr);
+                break;
+        case ND_RPL_DAO:
+                process_dao(sock, iface, &icmph->icmp6_dataun, len, addr);
+                break;
+        case ND_RPL_DAO_ACK:
+                process_daoack(sock, iface, &icmph->icmp6_dataun, len, addr);
+                break;
+        default:
+                flog(LOG_ERR, "%s received unsupported RPL code 0x%02x",
+                     if_name, icmph->icmp6_code);
+                break;
+        }
 }
