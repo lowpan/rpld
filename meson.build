@@ -34,7 +34,18 @@ srcs = files(
 	'netlink.c',
 	'dag.c',
 	'log.c',
-	'crypto/aes/tiny-AES-c-master/aes.c'
+	'crypto/aes/tiny-AES-c-master/aes.c',
+	'crypto/kyber/ref/cbd.c',
+	'crypto/kyber/ref/kem.c',
+	'crypto/kyber/ref/fips202.c',
+	'crypto/kyber/ref/indcpa.c',
+	'crypto/kyber/ref/randombytes.c',
+	'crypto/kyber/ref/ntt.c',
+	'crypto/kyber/ref/poly.c',
+	'crypto/kyber/ref/polyvec.c',
+	'crypto/kyber/ref/reduce.c',
+	'crypto/kyber/ref/symmetric-shake.c',
+	'crypto/kyber/ref/verify.c',
 )
 
 executable('rpld', srcs, dependencies : [ evdep, luadep, mnldep ])

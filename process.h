@@ -21,8 +21,10 @@
 
 #include "config.h"
 
+void process_exchange(int sock, const struct list_head *ifaces, unsigned char *msg,
+					  int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
+					  int hoplimit, struct ev_loop *loop, ev_io *w);
 void process(int sock, const struct list_head *ifaces, unsigned char *msg,
-	     int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
-	     int hoplimit);
-
+			 int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
+			 int hoplimit);
 #endif /* __RPLD_PROCESS_H__ */

@@ -31,22 +31,23 @@
 #define PATH_RPLD_CONF "/etc/rpld.conf"
 #define LOG_FACILITY LOG_DAEMON
 
-//ICMPV6_PLD_MAXLEN
+// ICMPV6_PLD_MAXLEN
 
 static struct list_head ifaces;
 static int sock;
+static ev_async icmpv6_async;
+static ev_io sock_watcher;
 
 /* TODO overwrite root setting */
 static char usage_str[] = {
-"\n"
-"  -C, --config=PATH       Set the config file.  Default is /etc/rpld.conf\n"
-"  -d, --debug=NUM         Set the debug level.  Values can be 1, 2, 3, 4 or 5.\n"
-"  -h, --help              Show this help screen.\n"
-"  -f, --facility=NUM      Set the logging facility.\n"
-"  -l, --logfile=PATH      Set the log file.\n"
-"  -m, --logmethod=X       Set method to: syslog, stderr, stderr_syslog, logfile,\n"
-"  -v, --version           Print the version and quit.\n"
-};
+	"\n"
+	"  -C, --config=PATH       Set the config file.  Default is /etc/rpld.conf\n"
+	"  -d, --debug=NUM         Set the debug level.  Values can be 1, 2, 3, 4 or 5.\n"
+	"  -h, --help              Show this help screen.\n"
+	"  -f, --facility=NUM      Set the logging facility.\n"
+	"  -l, --logfile=PATH      Set the log file.\n"
+	"  -m, --logmethod=X       Set method to: syslog, stderr, stderr_syslog, logfile,\n"
+	"  -v, --version           Print the version and quit.\n"};
 
 static void usage(FILE *o, const char *pname)
 {
@@ -55,6 +56,7 @@ static void usage(FILE *o, const char *pname)
 
 static void icmpv6_cb(EV_P_ ev_io *w, int revents)
 {
+	flog(LOG_INFO, "icmpv6_cb");
 	int len, hoplimit;
 	struct sockaddr_in6 rcv_addr;
 	struct in6_pktinfo *pkt_info = NULL;
@@ -62,11 +64,54 @@ static void icmpv6_cb(EV_P_ ev_io *w, int revents)
 	unsigned char chdr[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(int))];
 
 	len = recv_rs_ra(sock, msg, &rcv_addr, &pkt_info, &hoplimit, chdr);
-	if (len > 0 && pkt_info) {
+	if (len > 0 && pkt_info)
+	{
 		process(sock, &ifaces, msg, len, &rcv_addr, pkt_info, hoplimit);
-	} else if (!pkt_info) {
+	}
+	else if (!pkt_info)
+	{
 		dlog(LOG_INFO, 4, "recv_rs_ra returned null pkt_info");
-	} else if (len <= 0) {
+	}
+	else if (len <= 0)
+	{
+		dlog(LOG_INFO, 4, "recv_rs_ra returned len <= 0: %d", len);
+	}
+}
+
+static void icmpv6_async_cb(EV_P_ ev_async *w, int revents)
+{
+	flog(LOG_INFO, "icmpv6_async_cb");
+	// ev_io sock_watcher;
+
+	// Reinitialize the socket watcher for ICMPv6 handling
+	ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
+	ev_io_start(loop, &sock_watcher);
+
+	ev_run(loop, 0);
+
+	// ev_io_start(loop, &sock_watcher);
+}
+
+static void key_exchange_cb(EV_P_ ev_io *w, int revents)
+{
+	flog(LOG_INFO, "key_exchange_cb");
+	int len, hoplimit;
+	struct sockaddr_in6 rcv_addr;
+	struct in6_pktinfo *pkt_info = NULL;
+	unsigned char msg[MSG_SIZE_RECV];
+	unsigned char chdr[CMSG_SPACE(sizeof(struct in6_pktinfo)) + CMSG_SPACE(sizeof(int))];
+
+	len = recv_rs_ra(sock, msg, &rcv_addr, &pkt_info, &hoplimit, chdr);
+	if (len > 0 && pkt_info)
+	{
+		process_exchange(sock, &ifaces, msg, len, &rcv_addr, pkt_info, hoplimit, loop, w);
+	}
+	else if (!pkt_info)
+	{
+		dlog(LOG_INFO, 4, "recv_rs_ra returned null pkt_info");
+	}
+	else if (len <= 0)
+	{
 		dlog(LOG_INFO, 4, "recv_rs_ra returned len <= 0: %d", len);
 	}
 }
@@ -86,10 +131,22 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
 
 static void send_dis_cb(EV_P_ ev_timer *w, int revents)
 {
+	flog(LOG_INFO, "send_dis_cb");
 	struct iface *iface = container_of(w, struct iface, dis_w);
+	flog(LOG_INFO, "iface %s", iface->ifname);
 
 	ev_timer_stop(loop, w);
+
+	send_pk(sock, iface);
+	// ev_io sock_watcher;
+	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
+	ev_io_start(loop, &sock_watcher);
+
+	ev_run(loop, 0);
+
+	flog(LOG_INFO, "really sending dis");
 	send_dis(sock, iface);
+	ev_async_send(loop, &icmpv6_async);
 }
 
 /* TODO move somewhere else */
@@ -97,7 +154,7 @@ struct ev_loop *foo;
 void dag_init_timer(struct dag *dag)
 {
 	ev_timer_init(&dag->trickle_w, trickle_cb,
-		      dag->trickle_t, dag->trickle_t);
+				  dag->trickle_t, dag->trickle_t);
 	ev_timer_start(foo, &dag->trickle_w);
 }
 
@@ -108,20 +165,23 @@ static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 	struct rpl *rpl;
 	struct dag *dag;
 
-	DL_FOREACH(ifaces->head, i) {
+	DL_FOREACH(ifaces->head, i)
+	{
 		iface = container_of(i, struct iface, list);
 
 		ev_timer_init(&iface->dis_w, send_dis_cb, 1, 1);
 		/* schedule a dis at statup */
 		ev_timer_start(loop, &iface->dis_w);
 
-		DL_FOREACH(iface->rpls.head, r) {
+		DL_FOREACH(iface->rpls.head, r)
+		{
 			rpl = container_of(r, struct rpl, list);
-			DL_FOREACH(rpl->dags.head, d) {
+			DL_FOREACH(rpl->dags.head, d)
+			{
 				dag = container_of(d, struct dag, list);
 
 				ev_timer_init(&dag->trickle_w, trickle_cb,
-					      dag->trickle_t, dag->trickle_t);
+							  dag->trickle_t, dag->trickle_t);
 				ev_timer_start(loop, &dag->trickle_w);
 
 				/* TODO wrong here */
@@ -142,7 +202,6 @@ int main(int argc, char *argv[])
 	const char *pname = argv[0];
 	int facility = LOG_FACILITY;
 	int log_method = L_UNSPEC;
-	ev_io sock_watcher;
 	ev_signal exitsig;
 	int opt;
 	int rc;
@@ -151,27 +210,42 @@ int main(int argc, char *argv[])
 	foo = loop;
 
 	/* TODO add longopt as the help says it */
-	while ((opt = getopt(argc, argv, "C:m:f:l:d:h")) != -1) {
-		switch (opt) {
+	while ((opt = getopt(argc, argv, "C:m:f:l:d:h")) != -1)
+	{
+		switch (opt)
+		{
 		case 'C':
 			conf_path = optarg;
 			break;
 		case 'm':
-			if (!strcmp(optarg, "syslog")) {
+			if (!strcmp(optarg, "syslog"))
+			{
 				log_method = L_SYSLOG;
-			} else if (!strcmp(optarg, "stderr_syslog")) {
+			}
+			else if (!strcmp(optarg, "stderr_syslog"))
+			{
 				log_method = L_STDERR_SYSLOG;
-			} else if (!strcmp(optarg, "stderr")) {
+			}
+			else if (!strcmp(optarg, "stderr"))
+			{
 				log_method = L_STDERR;
-			} else if (!strcmp(optarg, "stderr_clean")) {
+			}
+			else if (!strcmp(optarg, "stderr_clean"))
+			{
 				log_method = L_STDERR_CLEAN;
-			} else if (!strcmp(optarg, "logfile")) {
+			}
+			else if (!strcmp(optarg, "logfile"))
+			{
 				log_method = L_LOGFILE;
-			} else if (!strcmp(optarg, "none")) {
+			}
+			else if (!strcmp(optarg, "none"))
+			{
 				log_method = L_NONE;
-			} else {
+			}
+			else
+			{
 				fprintf(stderr, "%s: unknown log method: %s\n",
-					pname, optarg);
+						pname, optarg);
 				exit(1);
 			}
 			break;
@@ -200,7 +274,8 @@ int main(int argc, char *argv[])
 
 	if (log_method == L_UNSPEC)
 		log_method = L_STDERR;
-	if (log_open(log_method, pname, logfile, facility) < 0) {
+	if (log_open(log_method, pname, logfile, facility) < 0)
+	{
 		perror("log_open");
 		exit(1);
 	}
@@ -208,41 +283,53 @@ int main(int argc, char *argv[])
 	flog(LOG_INFO, "version %s started", VERSION);
 
 	rc = netlink_open();
-	if (rc == -1) {
+	if (rc == -1)
+	{
 		perror("mnl_socket_open");
 		exit(1);
 	}
 
 	rc = config_load(conf_path, &ifaces);
-	if (rc < 0) {
+	if (rc < 0)
+	{
 		netlink_close();
 		flog(LOG_ERR, "Failed to parse config: %s", conf_path);
 		exit(1);
 	}
 
 	rc = rpld_setup(loop, &ifaces);
-	if (rc != 0) {
+	if (rc != 0)
+	{
 		netlink_close();
 		config_free(&ifaces);
 		exit(1);
 	}
 
 	rc = set_var(PROC_SYS_IP6_MAX_HBH_OPTS_NUM, 99);
-	if (rc == -1) {
+	if (rc == -1)
+	{
 		flog(LOG_ERR, "Failed to set hbh max value");
 		return -1;
 	}
 
 	sock = open_icmpv6_socket(&ifaces);
-	if (sock < 0) {
+	if (sock < 0)
+	{
 		perror("open_icmpv6_socket");
 		netlink_close();
 		config_free(&ifaces);
 		exit(1);
 	}
 
-	ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
-	ev_io_start(loop, &sock_watcher);
+	// Initialize the async watcher for signaling
+	ev_async_init(&icmpv6_async, icmpv6_async_cb);
+	ev_async_start(loop, &icmpv6_async);
+
+	// ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
+	// ev_io_start(loop, &sock_watcher);
+
+	// ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
+	// ev_io_start(loop, &sock_watcher);
 
 	ev_run(loop, 0);
 

@@ -22,11 +22,11 @@
 #include "config.h"
 #include "log.h"
 
-static uint8_t aes_key[] = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,  0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c };
-const uint8_t* get_aes_key(void){
-         return aes_key;
-       }
-
+static uint8_t aes_key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
+const uint8_t *get_aes_key(void)
+{
+        return aes_key;
+}
 
 static inline int cmp_iface_addrs(void const *a, void const *b)
 {
@@ -49,10 +49,14 @@ static int get_iface_addrs(char const *name, struct in6_addr *if_addr,
         int link_local_set = 0;
         int i = 0;
 
-        if (getifaddrs(&addresses) != 0) {
+        if (getifaddrs(&addresses) != 0)
+        {
                 flog(LOG_ERR, "getifaddrs failed on %s: %s", name, strerror(errno));
-        } else {
-                for (struct ifaddrs *ifa = addresses; ifa != NULL; ifa = ifa->ifa_next) {
+        }
+        else
+        {
+                for (struct ifaddrs *ifa = addresses; ifa != NULL; ifa = ifa->ifa_next)
+                {
 
                         if (!ifa->ifa_addr)
                                 continue;
@@ -149,7 +153,8 @@ struct iface *iface_find_by_ifindex(const struct list_head *ifaces,
         struct iface *iface;
         struct list *e;
 
-        DL_FOREACH(ifaces->head, e) {
+        DL_FOREACH(ifaces->head, e)
+        {
                 iface = container_of(e, struct iface, list);
 
                 if (iface->ifindex == ifindex)
@@ -192,13 +197,17 @@ static int config_load_dags(lua_State *L, struct iface *iface,
                 return -1;
 
         lua_pushnil(L);
-        while (lua_next(L, -2) != 0) {
+        while (lua_next(L, -2) != 0)
+        {
                 lua_getfield(L, -1, "dest_prefix");
-                if (lua_isstring(L, -1)) {
+                if (lua_isstring(L, -1))
+                {
                         rc = parse_ipv6_prefix(&dest, lua_tostring(L, -1));
                         if (rc == -1)
                                 return -1;
-                } else {
+                }
+                else
+                {
                         rc = gen_random_private_ula_pfx(&dest);
                         if (rc == -1)
                                 return -1;
@@ -206,19 +215,25 @@ static int config_load_dags(lua_State *L, struct iface *iface,
                 lua_pop(L, 1);
 
                 lua_getfield(L, -1, "trickle_t");
-                if (lua_isnumber(L, -1)) {
+                if (lua_isnumber(L, -1))
+                {
                         trickle_t = lua_tonumber(L, -1);
-                } else {
+                }
+                else
+                {
                         trickle_t = DEFAULT_TICKLE_T;
                 }
                 lua_pop(L, 1);
 
                 lua_getfield(L, -1, "dodagid");
-                if (lua_isstring(L, -1)) {
+                if (lua_isstring(L, -1))
+                {
                         rc = inet_pton(AF_INET6, lua_tostring(L, -1), &dodagid);
                         if (rc != 1)
                                 return -1;
-                } else {
+                }
+                else
+                {
                         rc = gen_stateless_addr(&dest, &iface->llinfo,
                                                 &dodagid);
                         if (rc == -1)
@@ -227,9 +242,12 @@ static int config_load_dags(lua_State *L, struct iface *iface,
                 lua_pop(L, 1);
 
                 lua_getfield(L, -1, "version");
-                if (lua_isnumber(L, -1)) {
+                if (lua_isnumber(L, -1))
+                {
                         version = lua_tonumber(L, -1);
-                } else {
+                }
+                else
+                {
                         version = DEFAULT_DAG_VERSION;
                 }
                 lua_pop(L, 1);
@@ -259,7 +277,8 @@ static int config_load_instances(lua_State *L, struct iface *iface)
                 return -1;
 
         lua_pushnil(L);
-        while (lua_next(L, -2) != 0) {
+        while (lua_next(L, -2) != 0)
+        {
                 lua_getfield(L, -1, "instance");
                 if (!lua_isnumber(L, -1))
                         return -1;
@@ -280,6 +299,7 @@ static int config_load_instances(lua_State *L, struct iface *iface)
 
 int config_load(const char *filename, struct list_head *ifaces)
 {
+        flog(LOG_INFO, "config loading: %s", filename);
         struct iface *iface;
         lua_State *L;
         int rc;
@@ -293,9 +313,10 @@ int config_load(const char *filename, struct list_head *ifaces)
         luaopen_string(L);
         luaopen_math(L);
 
-        if (luaL_loadfile(L, filename) || lua_pcall(L, 0, 0, 0)) {
+        if (luaL_loadfile(L, filename) || lua_pcall(L, 0, 0, 0))
+        {
                 flog(LOG_ERR, "cannot run configuration file: %s",
-                      lua_tostring(L, -1));
+                     lua_tostring(L, -1));
                 return -1;
         }
 
@@ -304,15 +325,18 @@ int config_load(const char *filename, struct list_head *ifaces)
                 return -1;
 
         lua_pushnil(L);
-        while (lua_next(L, -2) != 0) {
+        while (lua_next(L, -2) != 0)
+        {
                 iface = iface_create();
-                if (!iface) {
+                if (!iface)
+                {
                         lua_close(L);
                         return -1;
                 }
 
                 lua_getfield(L, -1, "ifname");
-                if (!lua_isstring(L, -1)) {
+                if (!lua_isstring(L, -1))
+                {
                         iface_free(iface);
                         lua_close(L);
                         return -1;
@@ -330,7 +354,8 @@ int config_load(const char *filename, struct list_head *ifaces)
                                        PROC_SYS_IP6_IFACE_FORWARDING,
                                        "forwarding", 1);
 #endif
-                if (rc == -1) {
+                if (rc == -1)
+                {
                         flog(LOG_ERR, "Failed to set forwarding");
                         iface_free(iface);
                         lua_close(L);
@@ -338,7 +363,8 @@ int config_load(const char *filename, struct list_head *ifaces)
                 }
 
                 iface->ifindex = if_nametoindex(iface->ifname);
-                if (iface->ifindex == 0) {
+                if (iface->ifindex == 0)
+                {
                         flog(LOG_ERR, "%s not found: %s", iface->ifname, strerror(errno));
                         iface_free(iface);
                         lua_close(L);
@@ -348,7 +374,8 @@ int config_load(const char *filename, struct list_head *ifaces)
                 nl_get_llinfo(iface->ifindex, &iface->llinfo);
 
                 rc = get_iface_addrs(iface->ifname, &iface->ifaddr, &iface->ifaddrs);
-                if (rc == -1) {
+                if (rc == -1)
+                {
                         iface_free(iface);
                         lua_close(L);
                         return rc;
@@ -359,7 +386,8 @@ int config_load(const char *filename, struct list_head *ifaces)
                 iface->ifaddrs_count = rc;
 
                 lua_getfield(L, -1, "dodag_root");
-                if (!lua_isboolean(L, -1)) {
+                if (!lua_isboolean(L, -1))
+                {
                         iface_free(iface);
                         lua_close(L);
                         return -1;
@@ -368,7 +396,8 @@ int config_load(const char *filename, struct list_head *ifaces)
                 iface->dodag_root = lua_toboolean(L, -1);
                 lua_pop(L, 1);
 
-                if (iface->dodag_root) {
+                if (iface->dodag_root)
+                {
                         rc = config_load_instances(L, iface);
                         if (rc == -1)
                                 return rc;
@@ -391,7 +420,8 @@ void config_free(struct list_head *ifaces)
         struct list *e, *tmp;
         struct iface *iface;
 
-        DL_FOREACH_SAFE(ifaces->head, e, tmp) {
+        DL_FOREACH_SAFE(ifaces->head, e, tmp)
+        {
                 iface = container_of(e, struct iface, list);
                 iface_free(iface);
 
