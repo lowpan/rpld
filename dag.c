@@ -22,6 +22,8 @@
 #include "rpl.h"
 #include "dag.h"
 
+#include "crypto/kyber/ref/kem.h"
+
 struct peer *dag_peer_create(const struct in6_addr *addr)
 {
 	struct peer *peer;
@@ -37,7 +39,7 @@ struct peer *dag_peer_create(const struct in6_addr *addr)
 }
 
 struct child *dag_child_create(const struct in6_addr *addr,
-			       const struct in6_addr *from)
+							   const struct in6_addr *from)
 {
 	struct child *peer;
 
@@ -68,12 +70,13 @@ bool dag_is_child(const struct child *peer, const struct in6_addr *addr)
 }
 
 static struct child *dag_lookup_child(const struct dag *dag,
-				      const struct in6_addr *addr)
+									  const struct in6_addr *addr)
 {
 	struct child *peer;
 	struct list *p;
 
-	DL_FOREACH(dag->childs.head, p) {
+	DL_FOREACH(dag->childs.head, p)
+	{
 		peer = container_of(p, struct child, list);
 		if (dag_is_child(peer, addr))
 			return peer;
@@ -83,8 +86,8 @@ static struct child *dag_lookup_child(const struct dag *dag,
 }
 
 struct child *dag_lookup_child_or_create(struct dag *dag,
-					 const struct in6_addr *addr,
-					 const struct in6_addr *from)
+										 const struct in6_addr *addr,
+										 const struct in6_addr *from)
 {
 	struct child *peer;
 
@@ -100,12 +103,13 @@ struct child *dag_lookup_child_or_create(struct dag *dag,
 }
 
 static struct rpl *dag_lookup_rpl(const struct iface *iface,
-				  uint8_t instance_id)
+								  uint8_t instance_id)
 {
 	struct rpl *rpl;
 	struct list *r;
 
-	DL_FOREACH(iface->rpls.head, r) {
+	DL_FOREACH(iface->rpls.head, r)
+	{
 		rpl = container_of(r, struct rpl, list);
 		if (rpl->instance_id == instance_id)
 			return rpl;
@@ -115,12 +119,13 @@ static struct rpl *dag_lookup_rpl(const struct iface *iface,
 }
 
 static struct dag *dag_lookup_dodag(const struct rpl *rpl,
-				    const struct in6_addr *dodagid)
+									const struct in6_addr *dodagid)
 {
 	struct dag *dag;
 	struct list *d;
 
-	DL_FOREACH(rpl->dags.head, d) {
+	DL_FOREACH(rpl->dags.head, d)
+	{
 		dag = container_of(d, struct dag, list);
 
 		if (!memcmp(&dag->dodagid, dodagid, sizeof(dag->dodagid)))
@@ -131,7 +136,7 @@ static struct dag *dag_lookup_dodag(const struct rpl *rpl,
 }
 
 struct dag *dag_lookup(const struct iface *iface, uint8_t instance_id,
-		       const struct in6_addr *dodagid)
+					   const struct in6_addr *dodagid)
 {
 	struct rpl *rpl;
 
@@ -159,7 +164,8 @@ struct dag_daoack *dag_lookup_daoack(const struct dag *dag, uint8_t dsn)
 	struct dag_daoack *daoack;
 	struct list *d;
 
-	DL_FOREACH(dag->pending_acks.head, d) {
+	DL_FOREACH(dag->pending_acks.head, d)
+	{
 		daoack = container_of(d, struct dag_daoack, list);
 
 		if (daoack->dsn == dsn)
@@ -184,9 +190,9 @@ int dag_daoack_insert(struct dag *dag, uint8_t dsn)
 void dag_init_timer(struct dag *dag);
 
 static int dag_init(struct dag *dag, const struct iface *iface,
-		    const struct rpl *rpl, const struct in6_addr *dodagid,
-		    ev_tstamp trickle_t, uint16_t my_rank, uint8_t version,
-		    const struct in6_prefix *dest)
+					const struct rpl *rpl, const struct in6_addr *dodagid,
+					ev_tstamp trickle_t, uint16_t my_rank, uint8_t version,
+					const struct in6_prefix *dest)
 {
 	/* TODO dest is currently necessary */
 	if (!dag || !iface || !rpl || !dest)
@@ -209,9 +215,9 @@ static int dag_init(struct dag *dag, const struct iface *iface,
 }
 
 struct dag *dag_create(struct iface *iface, uint8_t instanceid,
-		       const struct in6_addr *dodagid, ev_tstamp trickle_t,
-		       uint16_t my_rank, uint8_t version,
-		       const struct in6_prefix *dest)
+					   const struct in6_addr *dodagid, ev_tstamp trickle_t,
+					   uint16_t my_rank, uint8_t version,
+					   const struct in6_prefix *dest)
 {
 	bool append_rpl = false;
 	struct rpl *rpl;
@@ -219,7 +225,8 @@ struct dag *dag_create(struct iface *iface, uint8_t instanceid,
 	int rc;
 
 	rpl = dag_lookup_rpl(iface, instanceid);
-	if (!rpl) {
+	if (!rpl)
+	{
 		rpl = dag_rpl_create(instanceid);
 		if (!rpl)
 			return NULL;
@@ -230,23 +237,27 @@ struct dag *dag_create(struct iface *iface, uint8_t instanceid,
 	/* sanity check because it's just a list
 	 * we must avoid duplicate entries
 	 */
-	if (!append_rpl) {
+	if (!append_rpl)
+	{
 		dag = dag_lookup_dodag(rpl, dodagid);
-		if (dag) {
+		if (dag)
+		{
 			free(rpl);
 			return NULL;
 		}
 	}
 
 	dag = mzalloc(sizeof(*dag));
-	if (!dag) {
+	if (!dag)
+	{
 		free(rpl);
 		return NULL;
 	}
 
 	rc = dag_init(dag, iface, rpl, dodagid, trickle_t,
-		      my_rank, version, dest);
-	if (rc != 0) {
+				  my_rank, version, dest);
+	if (rc != 0)
+	{
 		free(dag);
 		free(rpl);
 		return NULL;
@@ -270,10 +281,10 @@ static int append_destprefix(const struct dag *dag, struct safe_buffer *sb)
 	uint8_t len;
 
 	len = sizeof(diodp) - sizeof(diodp.rpl_dio_prefix) +
-		bits_to_bytes(dag->dest.len);
+		  bits_to_bytes(dag->dest.len);
 
 	diodp.rpl_dio_type = 0x3;
-//	diodp.rpl_dio_prf = RPL_DIO_PREFIX_AUTONOMOUS_ADDR_CONFIG_FLAG;
+	//	diodp.rpl_dio_prf = RPL_DIO_PREFIX_AUTONOMOUS_ADDR_CONFIG_FLAG;
 	/* TODO crazy calculation here */
 	diodp.rpl_dio_len = len - 2;
 	diodp.rpl_dio_prefixlen = dag->dest.len;
@@ -319,17 +330,19 @@ void dag_process_dio(struct dag *dag)
 	int rc;
 
 	rc = gen_stateless_addr(&dag->dest, &dag->iface->llinfo,
-				&addr);
+							&addr);
 	if (rc == -1)
 		return;
 
 	rc = nl_add_addr(dag->iface->ifindex, &addr);
-	if (rc == -1 && errno != EEXIST) {
+	if (rc == -1 && errno != EEXIST)
+	{
 		flog(LOG_ERR, "error add nl %d", errno);
 		return;
 	}
 	rc = nl_del_route_via(dag->iface->ifindex, &dag->dest, NULL);
-	if (rc == -1) {
+	if (rc == -1)
+	{
 		flog(LOG_ERR, "error del nl %d, %s", errno, strerror(errno));
 		return;
 	}
@@ -354,13 +367,13 @@ void dag_build_dao_ack(struct dag *dag, struct safe_buffer *sb)
 }
 
 static int append_target(const struct in6_prefix *prefix,
-			 struct safe_buffer *sb)
+						 struct safe_buffer *sb)
 {
 	struct rpl_dao_target target = {};
 	uint8_t len;
 
 	len = sizeof(target) - sizeof(target.rpl_dao_prefix) +
-		bits_to_bytes(prefix->len);
+		  bits_to_bytes(prefix->len);
 
 	target.rpl_dao_type = RPL_DAO_RPLTARGET;
 	/* TODO crazy calculation here */
@@ -390,7 +403,8 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb)
 	prefix.len = 128;
 	append_target(&prefix, sb);
 
-	DL_FOREACH(dag->childs.head, c) {
+	DL_FOREACH(dag->childs.head, c)
+	{
 		child = container_of(c, struct child, list);
 		prefix.prefix = child->addr;
 		prefix.len = 128;
@@ -411,4 +425,34 @@ void dag_build_dis(struct safe_buffer *sb)
 
 	safe_buffer_append(sb, &dis, sizeof(dis));
 	flog(LOG_INFO, "build dis");
+}
+
+void dag_build_pk(struct safe_buffer *sb)
+{
+	dag_build_icmp(sb, ND_RPL_SEC_PK_EXCH);
+
+	crypto_kem_keypair(sender_keys.rpl_sec_pkey, sender_keys.rpl_sec_skey);
+	// log_hex("Saved static Public Key", sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
+	// log_hex("Saved static Secret Key ", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
+
+	safe_buffer_append(sb, &sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
+
+	// log_hex("Saved static Public Key after sb append", sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
+	// log_hex("Saved static Secret Key after sb append", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
+	flog(LOG_INFO, "pk built");
+}
+
+void dag_build_ct(struct safe_buffer *sb, const u_int8_t pk[CRYPTO_PUBLICKEYBYTES])
+{
+	struct nd_rpl_receiver_keys keys = {};
+
+	dag_build_icmp(sb, ND_RPL_SEC_CT_EXCH);
+
+	crypto_kem_enc(keys.rpl_sec_ckey, keys.rpl_sec_sskey, pk);
+	// log_hex("Cipher Text: ", keys.rpl_sec_ckey, CRYPTO_CIPHERTEXTBYTES);
+	log_hex("Encapsulated Shared Secret: ", keys.rpl_sec_sskey, CRYPTO_BYTES);
+
+	memcpy(&keys.rpl_sec_sskey, shared_secret, CRYPTO_BYTES);
+
+	safe_buffer_append(sb, &keys.rpl_sec_ckey, CRYPTO_CIPHERTEXTBYTES);
 }
