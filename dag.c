@@ -24,7 +24,7 @@
 #include "rpl.h"
 #include "dag.h"
 #include "config.h"
-#include "aes.h"
+#include "crypto/aes/tiny-AES-c-master/aes.h"
 
 struct peer *dag_peer_create(const struct in6_addr *addr)
 {
@@ -77,7 +77,8 @@ static struct child *dag_lookup_child(const struct dag *dag,
         struct child *peer;
         struct list *p;
 
-        DL_FOREACH(dag->childs.head, p) {
+        DL_FOREACH(dag->childs.head, p)
+        {
                 peer = container_of(p, struct child, list);
                 if (dag_is_child(peer, addr))
                         return peer;
@@ -109,7 +110,8 @@ static struct rpl *dag_lookup_rpl(const struct iface *iface,
         struct rpl *rpl;
         struct list *r;
 
-        DL_FOREACH(iface->rpls.head, r) {
+        DL_FOREACH(iface->rpls.head, r)
+        {
                 rpl = container_of(r, struct rpl, list);
                 if (rpl->instance_id == instance_id)
                         return rpl;
@@ -124,7 +126,8 @@ static struct dag *dag_lookup_dodag(const struct rpl *rpl,
         struct dag *dag;
         struct list *d;
 
-        DL_FOREACH(rpl->dags.head, d) {
+        DL_FOREACH(rpl->dags.head, d)
+        {
                 dag = container_of(d, struct dag, list);
 
                 if (!memcmp(&dag->dodagid, dodagid, sizeof(dag->dodagid)))
@@ -163,7 +166,8 @@ struct dag_daoack *dag_lookup_daoack(const struct dag *dag, uint8_t dsn)
         struct dag_daoack *daoack;
         struct list *d;
 
-        DL_FOREACH(dag->pending_acks.head, d) {
+        DL_FOREACH(dag->pending_acks.head, d)
+        {
                 daoack = container_of(d, struct dag_daoack, list);
 
                 if (daoack->dsn == dsn)
@@ -223,7 +227,8 @@ struct dag *dag_create(struct iface *iface, uint8_t instanceid,
         int rc;
 
         rpl = dag_lookup_rpl(iface, instanceid);
-        if (!rpl) {
+        if (!rpl)
+        {
                 rpl = dag_rpl_create(instanceid);
                 if (!rpl)
                         return NULL;
@@ -234,23 +239,27 @@ struct dag *dag_create(struct iface *iface, uint8_t instanceid,
         /* sanity check because it's just a list
          * we must avoid duplicate entries
          */
-        if (!append_rpl) {
+        if (!append_rpl)
+        {
                 dag = dag_lookup_dodag(rpl, dodagid);
-                if (dag) {
+                if (dag)
+                {
                         free(rpl);
                         return NULL;
                 }
         }
 
         dag = mzalloc(sizeof(*dag));
-        if (!dag) {
+        if (!dag)
+        {
                 free(rpl);
                 return NULL;
         }
 
         rc = dag_init(dag, iface, rpl, dodagid, trickle_t,
                       my_rank, version, dest);
-        if (rc != 0) {
+        if (rc != 0)
+        {
                 free(dag);
                 free(rpl);
                 return NULL;
@@ -274,10 +283,10 @@ static int append_destprefix(const struct dag *dag, struct safe_buffer *sb)
         uint8_t len;
 
         len = sizeof(diodp) - sizeof(diodp.rpl_dio_prefix) +
-                bits_to_bytes(dag->dest.len);
+              bits_to_bytes(dag->dest.len);
 
         diodp.rpl_dio_type = 0x3;
-//      diodp.rpl_dio_prf = RPL_DIO_PREFIX_AUTONOMOUS_ADDR_CONFIG_FLAG;
+        //      diodp.rpl_dio_prf = RPL_DIO_PREFIX_AUTONOMOUS_ADDR_CONFIG_FLAG;
         /* TODO crazy calculation here */
         diodp.rpl_dio_len = len - 2;
         diodp.rpl_dio_prefixlen = dag->dest.len;
@@ -291,43 +300,48 @@ static int append_destprefix(const struct dag *dag, struct safe_buffer *sb)
 static void dag_build_icmp(struct safe_buffer *sb, uint8_t code)
 {
         struct icmp6_hdr nd_rpl_hdr = {
-                .icmp6_type = ND_RPL_MESSAGE,
-                .icmp6_code = code,
+            .icmp6_type = ND_RPL_MESSAGE,
+            .icmp6_code = code,
         };
 
         /* TODO 4 is a hack */
         safe_buffer_append(sb, &nd_rpl_hdr, sizeof(nd_rpl_hdr) - 4);
 }
 
-void dag_log_dodagid(struct dag *dag) {
+void dag_log_dodagid(struct dag *dag)
+{
 
         char dodagid_str[INET6_ADDRSTRLEN];
         inet_ntop(AF_INET6, &dag->dodagid, dodagid_str, sizeof(dodagid_str));
         flog(LOG_INFO, "DODAGID: %s", dodagid_str);
 }
 
-void dodagid_to_hex(struct dag *dag, char *dodagid_hex) {
-        for (int i = 0; i < 16; i++) {
-          sprintf(&dodagid_hex[i * 2], "%02x", ((uint8_t *)&dag->dodagid)[i]);
+void dodagid_to_hex(struct dag *dag, char *dodagid_hex)
+{
+        for (int i = 0; i < 16; i++)
+        {
+                sprintf(&dodagid_hex[i * 2], "%02x", ((uint8_t *)&dag->dodagid)[i]);
         }
         dodagid_hex[32] = '\0';
-  //  flog(LOG_INFO, "DODAGID em hexadecimal: %s", dodagid_hex);
+        //  flog(LOG_INFO, "DODAGID em hexadecimal: %s", dodagid_hex);
 }
 
-uint8_t* dag_encrypt_dodagid(const char *dodagid_hex) {
+uint8_t *dag_encrypt_dodagid(const char *dodagid_hex)
+{
         flog(LOG_INFO, "Iniciando a criptografia do DODAGID");
 
-    // flog(LOG_INFO, "Verificando o recebimento de DODAGID dentro da função de criptografia %s", dodagid_hex);
+        // flog(LOG_INFO, "Verificando o recebimento de DODAGID dentro da função de criptografia %s", dodagid_hex);
 
-        const uint8_t* aes_key = get_aes_key();
+        const uint8_t *aes_key = get_aes_key();
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
         flog(LOG_INFO, "Chave AES inicializada com sucesso");
 
         uint8_t data_to_encrypt[16];
-        for (int i = 0; i < 16; i++) {
-          sscanf(&dodagid_hex[i * 2], "%02hhx", &data_to_encrypt[i]);
+        for (int i = 0; i < 16; i++)
+        {
+                sscanf(&dodagid_hex[i * 2], "%02hhx", &data_to_encrypt[i]);
         }
 
         AES_ECB_encrypt(&ctx, data_to_encrypt);
@@ -337,45 +351,47 @@ uint8_t* dag_encrypt_dodagid(const char *dodagid_hex) {
 
         flog(LOG_INFO, "Criptografia do DODAGID concluída");
 
-    flog(LOG_INFO, "DODAGID criptografado: ");
-    for (int i = 0; i < 16; i++) {
-        flog(LOG_INFO, "%02x", encrypted_data[i]);
-    }
+        flog(LOG_INFO, "DODAGID criptografado: ");
+        for (int i = 0; i < 16; i++)
+        {
+                flog(LOG_INFO, "%02x", encrypted_data[i]);
+        }
 
         return encrypted_data;
 }
 
-void dag_build_dio(struct dag *dag, struct safe_buffer *sb) {
-    struct nd_rpl_dio dio = {};
+void dag_build_dio(struct dag *dag, struct safe_buffer *sb)
+{
+        struct nd_rpl_dio dio = {};
 
-    dag_build_icmp(sb, ND_RPL_DAG_IO);
+        dag_build_icmp(sb, ND_RPL_DAG_IO);
 
-    dio.rpl_instanceid = dag->rpl->instance_id;
-    dio.rpl_version = dag->version;
-    dio.rpl_dtsn = dag->dtsn++;
-    flog(LOG_INFO, "my_rank %d", dag->my_rank);
-    dio.rpl_dagrank = htons(dag->my_rank);
-    dio.rpl_mopprf = ND_RPL_DIO_GROUNDED | RPL_DIO_STORING_NO_MULTICAST << 3;
-    dio.rpl_dagid = dag->dodagid;
+        dio.rpl_instanceid = dag->rpl->instance_id;
+        dio.rpl_version = dag->version;
+        dio.rpl_dtsn = dag->dtsn++;
+        flog(LOG_INFO, "my_rank %d", dag->my_rank);
+        dio.rpl_dagrank = htons(dag->my_rank);
+        dio.rpl_mopprf = ND_RPL_DIO_GROUNDED | RPL_DIO_STORING_NO_MULTICAST << 3;
+        dio.rpl_dagid = dag->dodagid;
 
-    dag_log_dodagid(dag);
+        dag_log_dodagid(dag);
 
-    char dodagid_hex[33];
-    dodagid_to_hex(dag, dodagid_hex);
+        char dodagid_hex[33];
+        dodagid_to_hex(dag, dodagid_hex);
 
-    // flog(LOG_INFO, "DODAGID em dag_build_dio antes da criptografia %s", dodagid_hex);
+        // flog(LOG_INFO, "DODAGID em dag_build_dio antes da criptografia %s", dodagid_hex);
 
-    uint8_t* encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
+        uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
 
-   /* flog(LOG_INFO, "DODAGID em dag_build_dio após criptografia ");
-    for (int i = 0; i < 16; i++) {
-        flog(LOG_INFO, "%02x", encrypted_dodagid[i]);
-    }*/
+        /* flog(LOG_INFO, "DODAGID em dag_build_dio após criptografia ");
+         for (int i = 0; i < 16; i++) {
+             flog(LOG_INFO, "%02x", encrypted_dodagid[i]);
+         }*/
 
-    memcpy(dio.rpl_dagid.s6_addr, encrypted_dodagid, 16);
+        memcpy(dio.rpl_dagid.s6_addr, encrypted_dodagid, 16);
 
-    safe_buffer_append(sb, &dio, sizeof(dio));
-    append_destprefix(dag, sb);
+        safe_buffer_append(sb, &dio, sizeof(dio));
+        append_destprefix(dag, sb);
 }
 
 void dag_process_dio(struct dag *dag)
@@ -389,12 +405,14 @@ void dag_process_dio(struct dag *dag)
                 return;
 
         rc = nl_add_addr(dag->iface->ifindex, &addr);
-        if (rc == -1 && errno != EEXIST) {
+        if (rc == -1 && errno != EEXIST)
+        {
                 flog(LOG_ERR, "error add nl %d", errno);
                 return;
         }
         rc = nl_del_route_via(dag->iface->ifindex, &dag->dest, NULL);
-        if (rc == -1) {
+        if (rc == -1)
+        {
                 flog(LOG_ERR, "error del nl %d, %s", errno, strerror(errno));
                 return;
         }
@@ -419,15 +437,14 @@ void dag_build_dao_ack(struct dag *dag, struct safe_buffer *sb)
         char dodagid_hex[33];
         dodagid_to_hex(dag, dodagid_hex);
 
-    // flog(LOG_INFO, "DODAGID em dag_build_DAO antes da criptografia %s", dodagid_hex);
+        // flog(LOG_INFO, "DODAGID em dag_build_DAO antes da criptografia %s", dodagid_hex);
 
-        uint8_t* encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
+        uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
 
-    /*flog(LOG_INFO, "DODAGID em dag_build_DAO após criptografia ");
-    for (int i = 0; i < 16; i++) {
-        flog(LOG_INFO, "%02x", encrypted_dodagid[i]);
-    }*/
-
+        /*flog(LOG_INFO, "DODAGID em dag_build_DAO após criptografia ");
+        for (int i = 0; i < 16; i++) {
+            flog(LOG_INFO, "%02x", encrypted_dodagid[i]);
+        }*/
 
         memcpy(dao.rpl_dagid.s6_addr, encrypted_dodagid, 16);
 
@@ -442,7 +459,7 @@ static int append_target(const struct in6_prefix *prefix,
         uint8_t len;
 
         len = sizeof(target) - sizeof(target.rpl_dao_prefix) +
-                bits_to_bytes(prefix->len);
+              bits_to_bytes(prefix->len);
 
         target.rpl_dao_type = RPL_DAO_RPLTARGET;
         /* TODO crazy calculation here */
@@ -472,24 +489,24 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb)
         char dodagid_hex[33];
         dodagid_to_hex(dag, dodagid_hex);
 
-    // flog(LOG_INFO, "DODAGID em dag_build_dao antes da criptografia %s", dodagid_hex);
+        // flog(LOG_INFO, "DODAGID em dag_build_dao antes da criptografia %s", dodagid_hex);
 
-        uint8_t* encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
+        uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
 
-    /* flog(LOG_INFO, "DODAGID em dag_build_dao após criptografia ");
-    for (int i = 0; i < 16; i++) {
-        flog(LOG_INFO, "%02x", encrypted_dodagid[i]);
-    }*/
+        /* flog(LOG_INFO, "DODAGID em dag_build_dao após criptografia ");
+        for (int i = 0; i < 16; i++) {
+            flog(LOG_INFO, "%02x", encrypted_dodagid[i]);
+        }*/
 
         memcpy(daoack.rpl_dagid.s6_addr, encrypted_dodagid, 16);
-
 
         safe_buffer_append(sb, &daoack, sizeof(daoack));
         prefix.prefix = dag->self;
         prefix.len = 128;
         append_target(&prefix, sb);
 
-        DL_FOREACH(dag->childs.head, c) {
+        DL_FOREACH(dag->childs.head, c)
+        {
                 child = container_of(c, struct child, list);
                 prefix.prefix = child->addr;
                 prefix.len = 128;

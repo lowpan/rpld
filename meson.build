@@ -34,6 +34,7 @@ srcs = files(
 	'netlink.c',
 	'dag.c',
 	'log.c',
+	'crypto/aes/tiny-AES-c-master/aes.c'
 )
 
 executable('rpld', srcs, dependencies : [ evdep, luadep, mnldep ])
