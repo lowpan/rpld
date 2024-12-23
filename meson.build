@@ -34,6 +34,7 @@ srcs = files(
 	'netlink.c',
 	'dag.c',
 	'log.c',
+	'crypto/aes/tiny-AES-c-master/aes.c',
 	'crypto/kyber/ref/cbd.c',
 	'crypto/kyber/ref/kem.c',
 	'crypto/kyber/ref/fips202.c',

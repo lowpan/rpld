@@ -1,9 +1,9 @@
 /*
  *   Authors:
- *    Alexander Aring		<alex.aring@gmail.com>
+ *    Alexander Aring           <alex.aring@gmail.com>
  *
  *   Original Authors:
- *    Lars Fenneberg		<lf@elemental.net>
+ *    Lars Fenneberg            <lf@elemental.net>
  *
  *   This software is Copyright 1996,1997,2019 by the above mentioned author(s),
  *   All Rights Reserved.
@@ -16,17 +16,64 @@
 #include <linux/ipv6.h>
 #include <netinet/icmp6.h>
 
+#include <stdio.h>
+
 #include "process.h"
 #include "netlink.h"
 #include "send.h"
 #include "dag.h"
 #include "log.h"
 #include "rpl.h"
+#include "config.h"
+#include "crypto/aes/tiny-AES-c-master/aes.h"
+
+void dagid_to_hex(const uint8_t *rpl_dagid, char *dagid_hex)
+{
+	for (int i = 0; i < 16; i++)
+	{
+		sprintf(&dagid_hex[i * 2], "%02x", rpl_dagid[i]);
+	}
+	dagid_hex[32] = '\0';
+	//     flog(LOG_INFO, "DODAGID em hexadecimal: %s", dagid_hex);
+}
+
+uint8_t *decrypt_dodagid(const char *dagid_hex)
+{
+	flog(LOG_INFO, "Iniciando a descriptografia do DODAGID");
+
+	//  flog(LOG_INFO, "DODAGID antes da descriptografia %s", dagid_hex);
+
+	const uint8_t *aes_key = get_aes_key();
+	struct AES_ctx ctx;
+	AES_init_ctx(&ctx, aes_key);
+
+	flog(LOG_INFO, "Chave AES inicializada com sucesso");
+
+	uint8_t data_to_decrypt[16];
+	for (int i = 0; i < 16; i++)
+	{
+		sscanf(&dagid_hex[i * 2], "%02hhx", &data_to_decrypt[i]);
+	}
+
+	AES_ECB_decrypt(&ctx, data_to_decrypt);
+
+	static uint8_t decrypted_data[16];
+	memcpy(decrypted_data, data_to_decrypt, 16);
+
+	flog(LOG_INFO, "Descriptografia do DODAGID concluída");
+
+	/*flog(LOG_INFO, "DODAGID descriptografado: ");
+	for (int i = 0; i < 16; i++) {
+		flog(LOG_INFO, "%02x", decrypted_data[i]);
+	}*/
+
+	return decrypted_data;
+}
 
 static void process_dio(int sock, struct iface *iface, const void *msg,
 						size_t len, struct sockaddr_in6 *addr)
 {
-	const struct nd_rpl_dio *dio = msg;
+	struct nd_rpl_dio *dio = msg;
 	const struct rpl_dio_destprefix *diodp;
 	char addr_str[INET6_ADDRSTRLEN];
 	struct in6_prefix pfx;
@@ -42,6 +89,19 @@ static void process_dio(int sock, struct iface *iface, const void *msg,
 
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
 	flog(LOG_INFO, "received dio %s", addr_str);
+
+	char dagid_hex[33];
+	dagid_to_hex((uint8_t *)dio->rpl_dagid.s6_addr, dagid_hex);
+	// flog(LOG_INFO, "Consulta do DODAGID no process.c %s", dagid_hex);
+
+	uint8_t *decrypted_dagid = decrypt_dodagid(dagid_hex);
+
+	/*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
+	  for (int i = 0; i < 16; i++) {
+	 flog(LOG_INFO, "%02x", decrypted_dagid[i]);
+	}*/
+
+	memcpy(dio->rpl_dagid.s6_addr, decrypted_dagid, 16);
 
 	dag = dag_lookup(iface, dio->rpl_instanceid,
 					 &dio->rpl_dagid);
@@ -79,6 +139,7 @@ static void process_dio(int sock, struct iface *iface, const void *msg,
 			   bits_to_bytes(pfx.len));
 
 		flog(LOG_INFO, "received but no dag found %s", addr_str);
+
 		dag = dag_create(iface, dio->rpl_instanceid,
 						 &dio->rpl_dagid, DEFAULT_TICKLE_T,
 						 UINT16_MAX, dio->rpl_version, &pfx);
@@ -116,7 +177,7 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 {
 	const struct rpl_dao_target *target;
 	const struct nd_rpl_dao *dao = msg;
-	sender_keys char addr_str[INET6_ADDRSTRLEN];
+	char addr_str[INET6_ADDRSTRLEN];
 	const struct nd_rpl_opt *opt;
 	const unsigned char *p;
 	struct child *child;
@@ -134,6 +195,19 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
 	flog(LOG_INFO, "received dao %s", addr_str);
+
+	char dagid_hex[33];
+	dagid_to_hex((uint8_t *)dao->rpl_dagid.s6_addr, dagid_hex);
+	// flog(LOG_INFO, "Consulta do DODAGID no process.c %s", dagid_hex);
+
+	uint8_t *decrypted_dagid = decrypt_dodagid(dagid_hex);
+
+	/*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
+	for (int i = 0; i < 16; i++) {
+		flog(LOG_INFO, "%02x", decrypted_dagid[i]);
+	}*/
+
+	memcpy(dao->rpl_dagid.s6_addr, decrypted_dagid, 16);
 
 	dag = dag_lookup(iface, dao->rpl_instanceid,
 					 &dao->rpl_dagid);
@@ -215,6 +289,19 @@ static void process_daoack(int sock, struct iface *iface, const void *msg,
 
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
 	flog(LOG_INFO, "received daoack %s", addr_str);
+
+	char dagid_hex[33];
+	dagid_to_hex((uint8_t *)daoack->rpl_dagid.s6_addr, dagid_hex);
+	// flog(LOG_INFO, "Consulta do DODAGID_DAOACK no process.c %s", dagid_hex);
+
+	uint8_t *decrypted_dagid = decrypt_dodagid(dagid_hex);
+
+	/*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
+	for (int i = 0; i < 16; i++) {
+		flog(LOG_INFO, "%02x", decrypted_dagid[i]);
+	}*/
+
+	memcpy(daoack->rpl_dagid.s6_addr, decrypted_dagid, 16);
 
 	dag = dag_lookup(iface, daoack->rpl_instanceid,
 					 &daoack->rpl_dagid);
