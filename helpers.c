@@ -16,14 +16,44 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "helpers.h"
 #include "config.h"
 #include "log.h"
 
+int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_size)
+{
+	size_t hex_length = strlen(hex_string);
+	if (hex_length != byte_array_size * 2)
+	{
+		// String length must be twice the byte array size
+		flog(LOG_ERR, "hex_to_bytes: hex string length must be twice the byte array size");
+		return -1;
+	}
+
+	for (size_t i = 0; i < byte_array_size; i++)
+	{
+		char high_nibble = hex_string[i * 2];
+		char low_nibble = hex_string[i * 2 + 1];
+
+		if (!isxdigit(high_nibble) || !isxdigit(low_nibble))
+		{
+			// Ensure characters are valid hexadecimal digits
+			flog(LOG_ERR, "hex_to_bytes: invalid hex characters");
+			return -2;
+		}
+
+		// Convert hex characters to a single byte
+		byte_array[i] = (uint8_t)((strtol((char[]){high_nibble, '\0'}, NULL, 16) << 4) |
+								  strtol((char[]){low_nibble, '\0'}, NULL, 16));
+	}
+	return 0; // Success
+}
+
 int gen_stateless_addr(const struct in6_prefix *prefix,
-		       const struct iface_llinfo *llinfo,
-		       struct in6_addr *dst)
+					   const struct iface_llinfo *llinfo,
+					   struct in6_addr *dst)
 {
 	uint8_t len = bits_to_bytes(prefix->len);
 	int i;
@@ -51,7 +81,8 @@ __attribute__((format(printf, 1, 2))) static char *strdupf(char const *format, .
 	va_start(va, format);
 	char *strp = 0;
 	int rc = vasprintf(&strp, format, va);
-	if (rc == -1 || !strp) {
+	if (rc == -1 || !strp)
+	{
 		flog(LOG_ERR, "vasprintf failed: %s", strerror(errno));
 		exit(-1);
 	}
@@ -70,12 +101,14 @@ int set_var(const char *var, uint32_t val)
 		goto cleanup;
 
 	fp = fopen(var, "w");
-	if (!fp) {
+	if (!fp)
+	{
 		flog(LOG_ERR, "failed to set %s: %s", var, strerror(errno));
 		goto cleanup;
 	}
 
-	if (0 > fprintf(fp, "%u", val)) {
+	if (0 > fprintf(fp, "%u", val))
+	{
 		goto cleanup;
 	}
 
@@ -102,13 +135,15 @@ int set_interface_var(const char *iface, const char *var, const char *name, uint
 		goto cleanup;
 
 	fp = fopen(spath, "w");
-	if (!fp) {
+	if (!fp)
+	{
 		if (name)
 			flog(LOG_ERR, "failed to set %s (%u) for %s: %s", name, val, iface, strerror(errno));
 		goto cleanup;
 	}
 
-	if (0 > fprintf(fp, "%u", val)) {
+	if (0 > fprintf(fp, "%u", val))
+	{
 		goto cleanup;
 	}
 
