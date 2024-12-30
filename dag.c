@@ -28,6 +28,8 @@
 
 #include "crypto/kyber/ref/kem.h"
 
+u_int8_t shared_secret[CRYPTO_BYTES];
+
 struct peer *dag_peer_create(const struct in6_addr *addr)
 {
         struct peer *peer;
@@ -330,15 +332,10 @@ void dodagid_to_hex(struct dag *dag, char *dodagid_hex)
 
 uint8_t *dag_encrypt_dodagid(const char *dodagid_hex)
 {
-        flog(LOG_INFO, "Iniciando a criptografia do DODAGID");
-
-        // flog(LOG_INFO, "Verificando o recebimento de DODAGID dentro da função de criptografia %s", dodagid_hex);
-
-        const uint8_t *aes_key = get_aes_key();
+        const uint8_t aes_key[16];
+        memcpy(aes_key, shared_secret, 16);
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
-
-        flog(LOG_INFO, "Chave AES inicializada com sucesso");
 
         uint8_t data_to_encrypt[16];
         for (int i = 0; i < 16; i++)
@@ -346,19 +343,14 @@ uint8_t *dag_encrypt_dodagid(const char *dodagid_hex)
                 sscanf(&dodagid_hex[i * 2], "%02hhx", &data_to_encrypt[i]);
         }
 
+        log_hex("DODAGID to encrypt", data_to_encrypt, 16);
+
         AES_ECB_encrypt(&ctx, data_to_encrypt);
 
         static uint8_t encrypted_data[16];
         memcpy(encrypted_data, data_to_encrypt, 16);
 
-        flog(LOG_INFO, "Criptografia do DODAGID concluída");
-
-        flog(LOG_INFO, "DODAGID criptografado: ");
-        for (int i = 0; i < 16; i++)
-        {
-                flog(LOG_INFO, "%02x", encrypted_data[i]);
-        }
-
+        log_hex("Encrypted DODAGID", encrypted_data, 16);
         return encrypted_data;
 }
 
@@ -486,19 +478,10 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb)
         daoack.rpl_flags |= RPL_DAO_D_MASK;
         daoack.rpl_dagid = dag->dodagid;
 
-        // dag_log_dodagid(dag);
-
         char dodagid_hex[33];
         dodagid_to_hex(dag, dodagid_hex);
 
-        // flog(LOG_INFO, "DODAGID em dag_build_dao antes da criptografia %s", dodagid_hex);
-
         uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
-
-        /* flog(LOG_INFO, "DODAGID em dag_build_dao após criptografia ");
-        for (int i = 0; i < 16; i++) {
-            flog(LOG_INFO, "%02x", encrypted_dodagid[i]);
-        }*/
 
         memcpy(daoack.rpl_dagid.s6_addr, encrypted_dodagid, 16);
 
@@ -531,32 +514,19 @@ void dag_build_dis(struct safe_buffer *sb)
         flog(LOG_INFO, "build dis");
 }
 
-void dag_build_pk(struct safe_buffer *sb)
+void dag_build_pk(struct safe_buffer *sb, struct iface *iface)
 {
         dag_build_icmp(sb, ND_RPL_SEC_PK_EXCH);
-
-        crypto_kem_keypair(sender_keys.rpl_sec_pkey, sender_keys.rpl_sec_skey);
-        // log_hex("Saved static Public Key", sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
-        // log_hex("Saved static Secret Key ", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
-
-        safe_buffer_append(sb, &sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
-
-        // log_hex("Saved static Public Key after sb append", sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
-        // log_hex("Saved static Secret Key after sb append", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
-        flog(LOG_INFO, "pk built");
+        safe_buffer_append(sb, iface->public_key, CRYPTO_PUBLICKEYBYTES);
 }
 
-void dag_build_ct(struct safe_buffer *sb, const u_int8_t pk[CRYPTO_PUBLICKEYBYTES])
+void dag_build_ct(struct safe_buffer *sb, const u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTES])
 {
-        struct nd_rpl_receiver_keys keys = {};
+        u_int8_t cipher_text[CRYPTO_CIPHERTEXTBYTES];
 
         dag_build_icmp(sb, ND_RPL_SEC_CT_EXCH);
 
-        crypto_kem_enc(keys.rpl_sec_ckey, keys.rpl_sec_sskey, pk);
-        // log_hex("Cipher Text: ", keys.rpl_sec_ckey, CRYPTO_CIPHERTEXTBYTES);
-        log_hex("Encapsulated Shared Secret: ", keys.rpl_sec_sskey, CRYPTO_BYTES);
-
-        memcpy(&keys.rpl_sec_sskey, shared_secret, CRYPTO_BYTES);
-
-        safe_buffer_append(sb, &keys.rpl_sec_ckey, CRYPTO_CIPHERTEXTBYTES);
+        crypto_kem_enc(cipher_text, shared_secret, rec_pk);
+        log_hex("Encapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
+        safe_buffer_append(sb, cipher_text, CRYPTO_CIPHERTEXTBYTES);
 }

@@ -56,7 +56,7 @@ static void usage(FILE *o, const char *pname)
 
 static void icmpv6_cb(EV_P_ ev_io *w, int revents)
 {
-	flog(LOG_INFO, "icmpv6_cb");
+	flog(LOG_DEBUG, "icmpv6_cb");
 	int len, hoplimit;
 	struct sockaddr_in6 rcv_addr;
 	struct in6_pktinfo *pkt_info = NULL;
@@ -80,16 +80,13 @@ static void icmpv6_cb(EV_P_ ev_io *w, int revents)
 
 static void icmpv6_async_cb(EV_P_ ev_async *w, int revents)
 {
-	flog(LOG_INFO, "icmpv6_async_cb");
-	// ev_io sock_watcher;
+	flog(LOG_DEBUG, "icmpv6_async_cb");
 
 	// Reinitialize the socket watcher for ICMPv6 handling
 	ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
 	ev_io_start(loop, &sock_watcher);
 
 	ev_run(loop, 0);
-
-	// ev_io_start(loop, &sock_watcher);
 }
 
 static void key_exchange_cb(EV_P_ ev_io *w, int revents)
@@ -138,7 +135,6 @@ static void send_dis_cb(EV_P_ ev_timer *w, int revents)
 	ev_timer_stop(loop, w);
 
 	send_pk(sock, iface);
-	// ev_io sock_watcher;
 	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
 	ev_io_start(loop, &sock_watcher);
 
@@ -158,6 +154,9 @@ void dag_init_timer(struct dag *dag)
 	ev_timer_start(foo, &dag->trickle_w);
 }
 
+/**
+ * After the configuration is loaded, we setup the rpls via the ifaces from the conf file
+ */
 static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 {
 	struct list *i, *r, *d;
@@ -165,14 +164,16 @@ static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 	struct rpl *rpl;
 	struct dag *dag;
 
+	/* For each iface in the conf file */
 	DL_FOREACH(ifaces->head, i)
 	{
 		iface = container_of(i, struct iface, list);
 
-		ev_timer_init(&iface->dis_w, send_dis_cb, 1, 1);
 		/* schedule a dis at statup */
+		ev_timer_init(&iface->dis_w, send_dis_cb, 1, 1);
 		ev_timer_start(loop, &iface->dis_w);
 
+		/* If is Root, schedule dio for rpls */
 		DL_FOREACH(iface->rpls.head, r)
 		{
 			rpl = container_of(r, struct rpl, list);

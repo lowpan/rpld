@@ -39,15 +39,11 @@ void dagid_to_hex(const uint8_t *rpl_dagid, char *dagid_hex)
 
 uint8_t *decrypt_dodagid(const char *dagid_hex)
 {
-	flog(LOG_INFO, "Iniciando a descriptografia do DODAGID");
+	const uint8_t aes_key[16];
+	memcpy(aes_key, shared_secret, 16);
 
-	//  flog(LOG_INFO, "DODAGID antes da descriptografia %s", dagid_hex);
-
-	const uint8_t *aes_key = get_aes_key();
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
-
-	flog(LOG_INFO, "Chave AES inicializada com sucesso");
 
 	uint8_t data_to_decrypt[16];
 	for (int i = 0; i < 16; i++)
@@ -55,17 +51,14 @@ uint8_t *decrypt_dodagid(const char *dagid_hex)
 		sscanf(&dagid_hex[i * 2], "%02hhx", &data_to_decrypt[i]);
 	}
 
+	log_hex("DODAGID to decrypt", data_to_decrypt, 16);
+
 	AES_ECB_decrypt(&ctx, data_to_decrypt);
 
 	static uint8_t decrypted_data[16];
 	memcpy(decrypted_data, data_to_decrypt, 16);
 
-	flog(LOG_INFO, "Descriptografia do DODAGID concluída");
-
-	/*flog(LOG_INFO, "DODAGID descriptografado: ");
-	for (int i = 0; i < 16; i++) {
-		flog(LOG_INFO, "%02x", decrypted_data[i]);
-	}*/
+	log_hex("Decrypted DODAGID", decrypted_data, 16);
 
 	return decrypted_data;
 }
@@ -92,14 +85,8 @@ static void process_dio(int sock, struct iface *iface, const void *msg,
 
 	char dagid_hex[33];
 	dagid_to_hex((uint8_t *)dio->rpl_dagid.s6_addr, dagid_hex);
-	// flog(LOG_INFO, "Consulta do DODAGID no process.c %s", dagid_hex);
 
 	uint8_t *decrypted_dagid = decrypt_dodagid(dagid_hex);
-
-	/*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
-	  for (int i = 0; i < 16; i++) {
-	 flog(LOG_INFO, "%02x", decrypted_dagid[i]);
-	}*/
 
 	memcpy(dio->rpl_dagid.s6_addr, decrypted_dagid, 16);
 
@@ -198,14 +185,8 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 
 	char dagid_hex[33];
 	dagid_to_hex((uint8_t *)dao->rpl_dagid.s6_addr, dagid_hex);
-	// flog(LOG_INFO, "Consulta do DODAGID no process.c %s", dagid_hex);
 
 	uint8_t *decrypted_dagid = decrypt_dodagid(dagid_hex);
-
-	/*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
-	for (int i = 0; i < 16; i++) {
-		flog(LOG_INFO, "%02x", decrypted_dagid[i]);
-	}*/
 
 	memcpy(dao->rpl_dagid.s6_addr, decrypted_dagid, 16);
 
@@ -292,14 +273,8 @@ static void process_daoack(int sock, struct iface *iface, const void *msg,
 
 	char dagid_hex[33];
 	dagid_to_hex((uint8_t *)daoack->rpl_dagid.s6_addr, dagid_hex);
-	// flog(LOG_INFO, "Consulta do DODAGID_DAOACK no process.c %s", dagid_hex);
 
 	uint8_t *decrypted_dagid = decrypt_dodagid(dagid_hex);
-
-	/*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
-	for (int i = 0; i < 16; i++) {
-		flog(LOG_INFO, "%02x", decrypted_dagid[i]);
-	}*/
 
 	memcpy(daoack->rpl_dagid.s6_addr, decrypted_dagid, 16);
 
@@ -343,45 +318,43 @@ static void process_dis(int sock, struct iface *iface, const void *msg,
 }
 
 /**
- * @brief
- *
- * @param sock int representing the socket
- * @param iface interface structure
- * @param msg received data from the ICMPv6 packet
- * @param len length of the received data
- * @param addr Socket address
+ * After receiving the public key, the node encapsulates the shared secret and sends the cipher text to the sender
  */
 static void process_pk_sec_exch(int sock, struct iface *iface, const void *msg,
 								size_t len)
 {
-	u_int8_t pk[CRYPTO_PUBLICKEYBYTES];
+	u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTES];
 	if (len < CRYPTO_PUBLICKEYBYTES)
 	{
 		flog(LOG_WARNING, "received packet too short for public key exchange");
 		return;
 	}
-	memcpy(pk, msg, CRYPTO_PUBLICKEYBYTES);
-	// log_hex("Saved Received Public Key: ", pk, CRYPTO_PUBLICKEYBYTES);
-
-	send_ct(sock, iface, &pk);
+	memcpy(rec_pk, msg, CRYPTO_PUBLICKEYBYTES);
+	send_ct(sock, iface, rec_pk);
 }
 
-static void process_ct_sec_exch(const void *msg, size_t len)
+/**
+ * After receiving the cipher text, the node decapsulates the shared secret and store it
+ */
+static void process_ct_sec_exch(const void *msg, size_t len, struct iface *iface)
 {
-	u_int8_t ct[CRYPTO_CIPHERTEXTBYTES];
+	u_int8_t cipher_text[CRYPTO_CIPHERTEXTBYTES];
 	if (len < CRYPTO_CIPHERTEXTBYTES)
 	{
 		flog(LOG_WARNING, "received packet too short for ciphertext exchange");
 		return;
 	}
-	memcpy(ct, msg, CRYPTO_CIPHERTEXTBYTES);
-	// log_hex("Received Ciphertext: ", ct, CRYPTO_CIPHERTEXTBYTES);
+	memcpy(cipher_text, msg, CRYPTO_CIPHERTEXTBYTES);
 
-	// log_hex("Using static Secret Key to decapsulate", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
-	crypto_kem_dec(shared_secret, ct, sender_keys.rpl_sec_skey);
+	crypto_kem_dec(shared_secret, cipher_text, iface->secret_key);
 	log_hex("Decapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
 }
 
+/**
+ * Process the exchange of public key and cipher text
+ * The exchange is representend by an ev_loop.
+ * In that sense, after receiving a public key or cipher text, the loop is stopped.
+ */
 void process_exchange(int sock, const struct list_head *ifaces, unsigned char *msg,
 					  int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
 					  int hoplimit, struct ev_loop *loop, ev_io *w)
@@ -439,7 +412,6 @@ void process_exchange(int sock, const struct list_head *ifaces, unsigned char *m
 	case ND_RPL_SEC_PK_EXCH:
 		flog(LOG_INFO, "Received ICMPv6 pk_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
 			 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
-		// log_hex("ICMPv6 data received: ", &icmph->icmp6_dataun, len);
 		process_pk_sec_exch(sock, iface, &icmph->icmp6_dataun, len);
 		ev_io_stop(loop, w);
 		ev_break(loop, EVBREAK_ONE);
@@ -447,8 +419,7 @@ void process_exchange(int sock, const struct list_head *ifaces, unsigned char *m
 	case ND_RPL_SEC_CT_EXCH:
 		flog(LOG_INFO, "Received ICMPv6 ct_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
 			 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
-		// log_hex("ICMPv6 data received: ", &icmph->icmp6_dataun, len);
-		process_ct_sec_exch(&icmph->icmp6_dataun, len);
+		process_ct_sec_exch(&icmph->icmp6_dataun, len, iface);
 		ev_io_stop(loop, w);
 		ev_break(loop, EVBREAK_ONE);
 		break;
@@ -524,18 +495,6 @@ void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 	case ND_RPL_DAO_ACK:
 		process_daoack(sock, iface, &icmph->icmp6_dataun, len, addr);
 		break;
-	// case ND_RPL_SEC_PK_EXCH:
-	// 	flog(LOG_INFO, "Received ICMPv6 pk_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
-	// 		 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
-	// 	log_hex("ICMPv6 data received: ", &icmph->icmp6_dataun, len);
-	// 	process_pk_sec_exch(sock, iface, &icmph->icmp6_dataun, len);
-	// 	break;
-	// case ND_RPL_SEC_CT_EXCH:
-	// 	flog(LOG_INFO, "Received ICMPv6 ct_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
-	// 		 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
-	// 	log_hex("ICMPv6 data received: ", &icmph->icmp6_dataun, len);
-	// 	process_ct_sec_exch(&icmph->icmp6_dataun, len);
-	// 	break;
 	default:
 		flog(LOG_ERR, "%s received unsupported RPL code 0x%02x",
 			 if_name, icmph->icmp6_code);

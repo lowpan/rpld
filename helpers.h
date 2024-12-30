@@ -62,6 +62,7 @@ static void log_hex(const char *label, const u_int8_t *data, size_t len)
 	}
 	printf("\n");
 }
+int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_size);
 
 struct in6_prefix
 {

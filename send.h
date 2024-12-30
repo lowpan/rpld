@@ -21,6 +21,6 @@ void send_dao(int sock, const struct in6_addr *to, struct dag *dag);
 void send_dao_ack(int sock, const struct in6_addr *to, struct dag *dag);
 void send_dis(int sock, struct iface *iface);
 void send_pk(int sock, struct iface *iface);
-void send_ct(int sock, struct iface *iface, u_int8_t pk[CRYPTO_PUBLICKEYBYTES]);
+void send_ct(int sock, struct iface *iface, u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTES]);
 
 #endif /* __RPLD_SEND_H__ */
