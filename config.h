@@ -22,28 +22,22 @@
 #include "dag.h"
 #include "list.h"
 
-#define MAX_RPL_INSTANCEID UINT8_MAX
-#define DEFAULT_TICKLE_T 5
-#define DEFAULT_DAG_VERSION 1
+#define MAX_RPL_INSTANCEID      UINT8_MAX
+#define DEFAULT_TICKLE_T        5
+#define DEFAULT_DAG_VERSION     1
 
-struct iface_llinfo
-{
+struct iface_llinfo {
         unsigned char *addr;
         uint8_t addr_len;
         uint32_t ifindex;
 };
 
-struct iface
-{
+struct iface {
         char ifname[IFNAMSIZ];
         uint32_t ifindex;
 
         ev_timer dis_w;
         struct iface_llinfo llinfo;
-
-        u_int8_t shared_secret[CRYPTO_BYTES];
-        u_int8_t public_key[CRYPTO_PUBLICKEYBYTES];
-        u_int8_t secret_key[CRYPTO_SECRETKEYBYTES];
 
         struct in6_addr ifaddr;
         struct in6_addr *ifaddrs;
@@ -56,7 +50,7 @@ struct iface
         struct list list;
 };
 
-const uint8_t *get_aes_key(void);
+const uint8_t* get_aes_key(void);
 int config_load(const char *filename, struct list_head *ifaces);
 void config_free(struct list_head *ifaces);
 

@@ -27,6 +27,8 @@
 #include "log.h"
 #include "rpl.h"
 
+struct nd_rpl_sender_keys sender_keys;
+
 static int really_send(int sock, const struct iface *iface,
 					   const struct in6_addr *dest,
 					   struct safe_buffer *sb)
@@ -141,12 +143,12 @@ void send_pk(int sock, struct iface *iface)
 	if (!sb)
 		return;
 
-	dag_build_pk(sb, iface);
+	dag_build_pk(sb);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
 	flog(LOG_INFO, "really sent pk! %d", rc);
 }
 
-void send_ct(int sock, struct iface *iface, u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTES])
+void send_ct(int sock, struct iface *iface, u_int8_t pk[CRYPTO_PUBLICKEYBYTES])
 {
 	flog(LOG_INFO, "Sending CT in iface: %s", iface->ifname);
 	struct safe_buffer *sb;
@@ -156,7 +158,7 @@ void send_ct(int sock, struct iface *iface, u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTE
 	if (!sb)
 		return;
 
-	dag_build_ct(sb, rec_pk);
+	dag_build_ct(sb, pk);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
 	flog(LOG_INFO, "send_ct! %d", rc);
 }

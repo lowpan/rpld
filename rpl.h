@@ -58,6 +58,25 @@ struct nd_rpl_security
     u_int8_t rpl_sec_ki[0]; /* depends upon kim */
 } PACKED;
 
+#ifndef RPL_SEC_H
+#define RPL_SEC_H
+
+struct nd_rpl_sender_keys
+{
+    u_int8_t rpl_sec_pkey[CRYPTO_PUBLICKEYBYTES]; /* Public Key */
+    u_int8_t rpl_sec_skey[CRYPTO_SECRETKEYBYTES]; /* Secret Key */
+} PACKED;
+
+struct nd_rpl_receiver_keys
+{
+    u_int8_t rpl_sec_ckey[CRYPTO_CIPHERTEXTBYTES]; /* Cipher Text */
+    u_int8_t rpl_sec_sskey[CRYPTO_BYTES];          /* Shared Secret */
+} PACKED;
+
+static u_int8_t shared_secret[CRYPTO_BYTES];
+extern struct nd_rpl_sender_keys sender_keys;
+#endif
+
 struct nd_rpl_opt
 {
     u_int8_t type;

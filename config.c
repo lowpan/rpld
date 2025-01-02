@@ -297,9 +297,6 @@ static int config_load_instances(lua_State *L, struct iface *iface)
         return 0;
 }
 
-/**
- * Parse the config file and load in the ifaces list.
- */
 int config_load(const char *filename, struct list_head *ifaces)
 {
         flog(LOG_INFO, "config loading: %s", filename);
@@ -387,46 +384,6 @@ int config_load(const char *filename, struct list_head *ifaces)
                 /* TODO because compression might be different here... */
                 iface->ifaddr_src = &iface->ifaddr;
                 iface->ifaddrs_count = rc;
-
-                char aux_public_key[CRYPTO_PUBLICKEYBYTES * 2];
-                char aux_secret_key[CRYPTO_SECRETKEYBYTES * 2];
-
-                lua_getfield(L, -1, "public_key");
-                if (lua_isnil(L, -1))
-                {
-                        lua_pop(L, 1);
-                }
-                else
-                {
-                        strncpy(aux_public_key, lua_tostring(L, -1), CRYPTO_PUBLICKEYBYTES * 2);
-                        lua_pop(L, 1);
-
-                        if (hex_to_bytes(aux_public_key, &iface->public_key, CRYPTO_PUBLICKEYBYTES) != 0)
-                        {
-                                iface_free(iface);
-                                lua_close(L);
-                                return -1;
-                        }
-                }
-
-                lua_getfield(L, -1, "secret_key");
-                if (lua_isnil(L, -1))
-                {
-                        lua_pop(L, 1);
-                }
-                else
-                {
-                        strncpy(aux_secret_key, lua_tostring(L, -1), CRYPTO_SECRETKEYBYTES * 2);
-
-                        lua_pop(L, 1);
-
-                        if (hex_to_bytes(aux_secret_key, &iface->secret_key, CRYPTO_SECRETKEYBYTES) != 0)
-                        {
-                                iface_free(iface);
-                                lua_close(L);
-                                return -1;
-                        }
-                }
 
                 lua_getfield(L, -1, "dodag_root");
                 if (!lua_isboolean(L, -1))
