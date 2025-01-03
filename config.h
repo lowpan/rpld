@@ -26,6 +26,13 @@
 #define DEFAULT_TICKLE_T 5
 #define DEFAULT_DAG_VERSION 1
 
+enum enc_mode
+{
+        ENC_MODE_NONE = 0,
+        ENC_MODE_RSA = 1,
+        ENC_MODE_KYBER = 2,
+};
+
 struct iface_llinfo
 {
         unsigned char *addr;
@@ -41,9 +48,10 @@ struct iface
         ev_timer dis_w;
         struct iface_llinfo llinfo;
 
-        u_int8_t shared_secret[CRYPTO_BYTES];
-        u_int8_t public_key[CRYPTO_PUBLICKEYBYTES];
-        u_int8_t secret_key[CRYPTO_SECRETKEYBYTES];
+        enum enc_mode enc_mode;
+        u_int8_t *shared_secret;
+        u_int8_t *public_key;
+        u_int8_t *secret_key;
 
         struct in6_addr ifaddr;
         struct in6_addr *ifaddrs;

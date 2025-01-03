@@ -146,7 +146,7 @@ void send_pk(int sock, struct iface *iface)
 	flog(LOG_INFO, "really sent pk! %d", rc);
 }
 
-void send_ct(int sock, struct iface *iface, u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTES])
+void send_ct(int sock, struct iface *iface, u_int8_t *rec_pk)
 {
 	flog(LOG_INFO, "Sending CT in iface: %s", iface->ifname);
 	struct safe_buffer *sb;
@@ -156,7 +156,7 @@ void send_ct(int sock, struct iface *iface, u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTE
 	if (!sb)
 		return;
 
-	dag_build_ct(sb, rec_pk);
+	dag_build_ct(sb, rec_pk, iface->enc_mode);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
 	flog(LOG_INFO, "send_ct! %d", rc);
 }

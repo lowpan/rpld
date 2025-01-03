@@ -46,6 +46,7 @@ srcs = files(
 	'crypto/kyber/ref/reduce.c',
 	'crypto/kyber/ref/symmetric-shake.c',
 	'crypto/kyber/ref/verify.c',
+	'crypto/RSA/rsa.c',
 )
 
 executable('rpld', srcs, dependencies : [ evdep, luadep, mnldep ])
