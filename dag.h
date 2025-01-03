@@ -108,7 +108,7 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dao_ack(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dis(struct safe_buffer *sb);
 void dag_build_pk(struct safe_buffer *sb, struct iface *iface);
-void dag_build_ct(struct safe_buffer *sb, const u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTES]);
+void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, int mode);
 struct child *dag_lookup_child_or_create(struct dag *dag,
 										 const struct in6_addr *addr,
 										 const struct in6_addr *from);

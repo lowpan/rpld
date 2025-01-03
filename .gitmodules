@@ -1,3 +1,6 @@
 [submodule "crypto/kyber"]
 	path = crypto/kyber
 	url = https://github.com/lowpan/kyber.git
+[submodule "crypto/RSA"]
+	path = crypto/RSA
+	url = https://github.com/lowpan/RSA

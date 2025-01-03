@@ -22,6 +22,8 @@
 #include "config.h"
 #include "log.h"
 
+#include "crypto/kyber/ref/kem.h"
+
 static uint8_t aes_key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
 const uint8_t *get_aes_key(void)
 {
@@ -297,8 +299,193 @@ static int config_load_instances(lua_State *L, struct iface *iface)
         return 0;
 }
 
+void parse_and_set_key(const char *aux_public_key, struct key_class *key)
+{
+        char *token;
+        char *input_copy = strdup(aux_public_key); // Create a modifiable copy of the string
+        if (!input_copy)
+        {
+                fprintf(stderr, "Memory allocation failed\n");
+                return;
+        }
+
+        // Extract the modulus (first number)
+        token = strtok(input_copy, ",");
+        if (token)
+        {
+                key->modulus = atoll(token); // Convert to long long
+        }
+        else
+        {
+                fprintf(stderr, "Error parsing modulus\n");
+                free(input_copy);
+                return;
+        }
+
+        // Extract the exponent (second number)
+        token = strtok(NULL, ",");
+        if (token)
+        {
+                key->exponent = atoll(token); // Convert to long long
+        }
+        else
+        {
+                fprintf(stderr, "Error parsing exponent\n");
+                free(input_copy);
+                return;
+        }
+
+        free(input_copy); // Clean up the allocated memory
+}
+
+/** Parse the encryption parameters in the config file, if any
+ * If it is to configure a encryption, it must have the enc_mode field with 1 or 2
+ * See encryption modes in config.h
+ */
+static int config_encryption(lua_State *L, struct iface *iface)
+{
+        flog(LOG_INFO, "config_encryption");
+        lua_getfield(L, -1, "enc_mode");
+        if (lua_isnil(L, -1))
+        {
+                iface->enc_mode = ENC_MODE_NONE;
+                flog(LOG_DEBUG, "enc_mode not found, setting to none");
+                lua_pop(L, 1);
+                return 0;
+        }
+        else
+        {
+                if (!lua_isnumber(L, -1))
+                {
+                        flog(LOG_ERR, "enc_mode is not a number");
+                        return -1;
+                }
+                iface->enc_mode = lua_tonumber(L, -1);
+                flog(LOG_DEBUG, "enc_mode: %d", iface->enc_mode);
+                lua_pop(L, 1);
+
+                /** RSA encryption mode */
+                if (iface->enc_mode == ENC_MODE_NONE)
+                {
+                        return 0;
+                }
+                else if (iface->enc_mode == ENC_MODE_RSA)
+                {
+                        flog(LOG_DEBUG, "RSA encryption mode");
+                        lua_getfield(L, -1, "public_key");
+                        if (lua_isnil(L, -1))
+                        {
+                                /** If the public key hasn't been passed, generate it and the private key */
+                                struct key_class public_key;
+                                struct key_class secret_key;
+                                rsa_gen_keys(&public_key, &secret_key, "primes.txt");
+                                iface->public_key = mzalloc(RSA_KEY_SIZE_BYTES);
+                                iface->secret_key = mzalloc(RSA_KEY_SIZE_BYTES);
+                                key_class_to_uint8(public_key, iface->public_key);
+                                key_class_to_uint8(secret_key, iface->secret_key);
+                                lua_pop(L, 1);
+                                return 0;
+                        }
+                        else
+                        {
+                                char *aux_public_key;
+                                aux_public_key = lua_tostring(L, -1);
+
+                                struct key_class public_key;
+                                parse_and_set_key(aux_public_key, &public_key);
+                                iface->public_key = mzalloc(RSA_KEY_SIZE_BYTES);
+                                key_class_to_uint8(public_key, iface->public_key);
+                        }
+                        lua_pop(L, 1);
+
+                        lua_getfield(L, -1, "secret_key");
+                        if (lua_isnil(L, -1))
+                        {
+                                /** If the secret key hasn't been passed, generate it and the public key  */
+                                struct key_class public_key;
+                                struct key_class secret_key;
+                                rsa_gen_keys(&public_key, &secret_key, "primes.txt");
+                                iface->public_key = mzalloc(RSA_KEY_SIZE_BYTES);
+                                iface->secret_key = mzalloc(RSA_KEY_SIZE_BYTES);
+                                key_class_to_uint8(public_key, iface->public_key);
+                                key_class_to_uint8(secret_key, iface->secret_key);
+                                lua_pop(L, 1);
+                                return 0;
+                        }
+                        else
+                        {
+                                char *aux_secret_key;
+                                aux_secret_key = lua_tostring(L, -1);
+
+                                struct key_class secret_key;
+                                parse_and_set_key(aux_secret_key, &secret_key);
+                                iface->secret_key = mzalloc(RSA_KEY_SIZE_BYTES);
+                                key_class_to_uint8(secret_key, iface->secret_key);
+                        }
+                        lua_pop(L, 1);
+                }
+                /** Kyber encryption mode */
+                else if (iface->enc_mode == ENC_MODE_KYBER)
+                {
+                        flog(LOG_DEBUG, "Kyber encryption mode");
+                        char aux_public_key[CRYPTO_PUBLICKEYBYTES * 2];
+                        char aux_secret_key[CRYPTO_SECRETKEYBYTES * 2];
+
+                        lua_getfield(L, -1, "public_key");
+                        if (lua_isnil(L, -1))
+                        {
+                                /** If the public key hasn't been passed, generate it and the private key */
+                                crypto_kem_keypair(iface->public_key, iface->secret_key);
+                                lua_pop(L, 1);
+                                return 0;
+                        }
+                        else
+                        {
+                                strncpy(aux_public_key, lua_tostring(L, -1), CRYPTO_PUBLICKEYBYTES * 2);
+
+                                iface->public_key = mzalloc(CRYPTO_PUBLICKEYBYTES);
+                                if (hex_to_bytes(aux_public_key, iface->public_key, CRYPTO_PUBLICKEYBYTES) != 0)
+                                {
+                                        return -1;
+                                }
+                        }
+                        lua_pop(L, 1);
+
+                        lua_getfield(L, -1, "secret_key");
+                        if (lua_isnil(L, -1))
+                        {
+                                /** If the secret key hasn't been passed, generate it and the public key  */
+                                crypto_kem_keypair(iface->public_key, iface->secret_key);
+                                lua_pop(L, 1);
+                                return 0;
+                        }
+                        else
+                        {
+                                strncpy(aux_secret_key, lua_tostring(L, -1), CRYPTO_SECRETKEYBYTES * 2);
+
+                                iface->secret_key = mzalloc(CRYPTO_SECRETKEYBYTES);
+                                if (hex_to_bytes(aux_secret_key, iface->secret_key, CRYPTO_SECRETKEYBYTES) != 0)
+                                {
+                                        return -1;
+                                }
+
+                                lua_pop(L, 1);
+                        }
+                }
+                else
+                {
+                        flog(LOG_ERR, "enc_mode not supported");
+                        return -1;
+                }
+        }
+        return 0;
+}
+
 /**
- * Parse the config file and load in the ifaces list.
+ * @brief Parse the config file and load in the ifaces list.
+ *
+ * @param filename the config file to be parsed
+ * @param ifaces the list of ifaces to be filled
  */
 int config_load(const char *filename, struct list_head *ifaces)
 {
@@ -388,44 +575,11 @@ int config_load(const char *filename, struct list_head *ifaces)
                 iface->ifaddr_src = &iface->ifaddr;
                 iface->ifaddrs_count = rc;
 
-                char aux_public_key[CRYPTO_PUBLICKEYBYTES * 2];
-                char aux_secret_key[CRYPTO_SECRETKEYBYTES * 2];
-
-                lua_getfield(L, -1, "public_key");
-                if (lua_isnil(L, -1))
+                if (config_encryption(L, iface) != 0)
                 {
-                        lua_pop(L, 1);
-                }
-                else
-                {
-                        strncpy(aux_public_key, lua_tostring(L, -1), CRYPTO_PUBLICKEYBYTES * 2);
-                        lua_pop(L, 1);
-
-                        if (hex_to_bytes(aux_public_key, &iface->public_key, CRYPTO_PUBLICKEYBYTES) != 0)
-                        {
-                                iface_free(iface);
-                                lua_close(L);
-                                return -1;
-                        }
-                }
-
-                lua_getfield(L, -1, "secret_key");
-                if (lua_isnil(L, -1))
-                {
-                        lua_pop(L, 1);
-                }
-                else
-                {
-                        strncpy(aux_secret_key, lua_tostring(L, -1), CRYPTO_SECRETKEYBYTES * 2);
-
-                        lua_pop(L, 1);
-
-                        if (hex_to_bytes(aux_secret_key, &iface->secret_key, CRYPTO_SECRETKEYBYTES) != 0)
-                        {
-                                iface_free(iface);
-                                lua_close(L);
-                                return -1;
-                        }
+                        iface_free(iface);
+                        lua_close(L);
+                        return -1;
                 }
 
                 lua_getfield(L, -1, "dodag_root");
