@@ -126,6 +126,14 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
 	ev_break(loop, EVBREAK_ALL);
 }
 
+/**
+ * @brief This function is called when the dis_w timer expires.
+ * It performs the key exchange and sends the dis message.
+ * After the dis message, it calls the icmpv6_cb to start the rpl process.
+ *
+ * @param w
+ * @param revents
+ */
 static void send_dis_cb(EV_P_ ev_timer *w, int revents)
 {
 	flog(LOG_INFO, "send_dis_cb");
@@ -155,7 +163,10 @@ void dag_init_timer(struct dag *dag)
 }
 
 /**
- * After the configuration is loaded, we setup the rpls via the ifaces from the conf file
+ * @brief After the configuration is loaded, we setup the rpls via the ifaces from the conf file
+ *
+ * @param loop the event loop
+ * @param ifaces the list of ifaces from the conf file
  */
 static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 {
@@ -322,15 +333,8 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// Initialize the async watcher for signaling
 	ev_async_init(&icmpv6_async, icmpv6_async_cb);
 	ev_async_start(loop, &icmpv6_async);
-
-	// ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
-	// ev_io_start(loop, &sock_watcher);
-
-	// ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
-	// ev_io_start(loop, &sock_watcher);
 
 	ev_run(loop, 0);
 

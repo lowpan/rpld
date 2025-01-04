@@ -39,7 +39,7 @@ void dagid_to_hex(const uint8_t *rpl_dagid, char *dagid_hex)
 
 uint8_t *decrypt_dodagid(const char *dagid_hex)
 {
-	const uint8_t aes_key[16];
+	uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
 
 	struct AES_ctx ctx;
@@ -51,14 +51,10 @@ uint8_t *decrypt_dodagid(const char *dagid_hex)
 		sscanf(&dagid_hex[i * 2], "%02hhx", &data_to_decrypt[i]);
 	}
 
-	log_hex("DODAGID to decrypt", data_to_decrypt, 16);
-
 	AES_ECB_decrypt(&ctx, data_to_decrypt);
 
 	static uint8_t decrypted_data[16];
 	memcpy(decrypted_data, data_to_decrypt, 16);
-
-	log_hex("Decrypted DODAGID", decrypted_data, 16);
 
 	return decrypted_data;
 }
@@ -318,36 +314,79 @@ static void process_dis(int sock, struct iface *iface, const void *msg,
 }
 
 /**
- * After receiving the public key, the node encapsulates the shared secret and sends the cipher text to the sender
+ * @brief After receiving the public key, the node encapsulates the shared secret and sends the cipher text to the sender
+ *
+ * @param sock the socket number
+ * @param iface the interface
+ * @param msg message from the packet with the received public key
  */
-static void process_pk_sec_exch(int sock, struct iface *iface, const void *msg,
-								size_t len)
+static void process_pk_sec_exch(int sock, struct iface *iface, const void *msg)
 {
-	u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTES];
-	if (len < CRYPTO_PUBLICKEYBYTES)
+	u_int8_t *rec_pk;
+
+	if (iface->enc_mode == ENC_MODE_RSA)
 	{
-		flog(LOG_WARNING, "received packet too short for public key exchange");
-		return;
+		rec_pk = mzalloc(RSA_KEY_SIZE_BYTES);
+		if (!rec_pk)
+		{
+			flog(LOG_ERR, "failed to allocate memory for public key");
+			return;
+		}
+		memcpy(rec_pk, msg, RSA_KEY_SIZE_BYTES);
+		send_ct(sock, iface, rec_pk);
 	}
-	memcpy(rec_pk, msg, CRYPTO_PUBLICKEYBYTES);
-	send_ct(sock, iface, rec_pk);
+	else if (iface->enc_mode == ENC_MODE_KYBER)
+	{
+		rec_pk = mzalloc(CRYPTO_PUBLICKEYBYTES);
+		if (!rec_pk)
+		{
+			flog(LOG_ERR, "failed to allocate memory for public key");
+			return;
+		}
+		memcpy(rec_pk, msg, CRYPTO_PUBLICKEYBYTES);
+		send_ct(sock, iface, rec_pk);
+	}
 }
 
 /**
- * After receiving the cipher text, the node decapsulates the shared secret and store it
+ * @brief After receiving the cipher text, the node decapsulates the shared secret and store it
+ *
+ * @param msg message from the packet with the received cipher text
+ * @param iface the interface
  */
-static void process_ct_sec_exch(const void *msg, size_t len, struct iface *iface)
+static void process_ct_sec_exch(const void *msg, struct iface *iface)
 {
-	u_int8_t cipher_text[CRYPTO_CIPHERTEXTBYTES];
-	if (len < CRYPTO_CIPHERTEXTBYTES)
-	{
-		flog(LOG_WARNING, "received packet too short for ciphertext exchange");
-		return;
-	}
-	memcpy(cipher_text, msg, CRYPTO_CIPHERTEXTBYTES);
 
-	crypto_kem_dec(shared_secret, cipher_text, iface->secret_key);
-	log_hex("Decapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
+	if (iface->enc_mode == ENC_MODE_RSA)
+	{
+		long long *cipher_text;
+		cipher_text = mzalloc(RSA_CIPHERTEXT_SIZE_BYTES);
+		if (!cipher_text)
+		{
+			flog(LOG_ERR, "failed to allocate memory for cipher text");
+			return;
+		}
+		memcpy(cipher_text, msg, RSA_CIPHERTEXT_SIZE_BYTES);
+		struct key_class sk_class;
+		uint8_to_key_class(iface->secret_key, &sk_class);
+		const char *dec_shared_secret = rsa_decrypt(cipher_text, RSA_CIPHERTEXT_SIZE_BYTES, &sk_class);
+		log_hex("Decapsulated Shared Secret: ", (const u_int8_t *)dec_shared_secret, RSA_SS_SIZE_BYTES);
+		memcpy(shared_secret, dec_shared_secret, RSA_SS_SIZE_BYTES);
+	}
+	else if (iface->enc_mode == ENC_MODE_KYBER)
+	{
+		u_int8_t *cipher_text;
+		cipher_text = mzalloc(CRYPTO_CIPHERTEXTBYTES);
+		if (!cipher_text)
+		{
+			flog(LOG_ERR, "failed to allocate memory for cipher text");
+			return;
+		}
+		memcpy(cipher_text, msg, CRYPTO_CIPHERTEXTBYTES);
+
+		crypto_kem_dec(shared_secret, cipher_text, iface->secret_key);
+		log_hex("Decapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
+	}
 }
 
 /**
@@ -412,14 +451,14 @@ void process_exchange(int sock, const struct list_head *ifaces, unsigned char *m
 	case ND_RPL_SEC_PK_EXCH:
 		flog(LOG_INFO, "Received ICMPv6 pk_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
 			 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
-		process_pk_sec_exch(sock, iface, &icmph->icmp6_dataun, len);
+		process_pk_sec_exch(sock, iface, &icmph->icmp6_dataun);
 		ev_io_stop(loop, w);
 		ev_break(loop, EVBREAK_ONE);
 		break;
 	case ND_RPL_SEC_CT_EXCH:
 		flog(LOG_INFO, "Received ICMPv6 ct_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
 			 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
-		process_ct_sec_exch(&icmph->icmp6_dataun, len, iface);
+		process_ct_sec_exch(&icmph->icmp6_dataun, iface);
 		ev_io_stop(loop, w);
 		ev_break(loop, EVBREAK_ONE);
 		break;
