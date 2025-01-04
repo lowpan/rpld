@@ -334,7 +334,7 @@ uint8_t *dag_encrypt_dodagid(const char *dodagid_hex)
 {
         uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
-        log_hex("AES key", aes_key, 16);
+
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
@@ -344,14 +344,11 @@ uint8_t *dag_encrypt_dodagid(const char *dodagid_hex)
                 sscanf(&dodagid_hex[i * 2], "%02hhx", &data_to_encrypt[i]);
         }
 
-        log_hex("DODAGID to encrypt", data_to_encrypt, 16);
-
         AES_ECB_encrypt(&ctx, data_to_encrypt);
 
         static uint8_t encrypted_data[16];
         memcpy(encrypted_data, data_to_encrypt, 16);
 
-        log_hex("Encrypted DODAGID", encrypted_data, 16);
         return encrypted_data;
 }
 
@@ -507,9 +504,9 @@ void dag_build_pk(struct safe_buffer *sb, struct iface *iface)
 
         if (iface->enc_mode == ENC_MODE_RSA)
         {
-                struct key_class rec_pk_class;
-                uint8_to_key_class(iface->public_key, &rec_pk_class);
-                flog(LOG_INFO, "Sending public key: %llu %llu", rec_pk_class.modulus, rec_pk_class.exponent);
+                // struct key_class rec_pk_class;
+                // uint8_to_key_class(iface->public_key, &rec_pk_class);
+                // flog(LOG_INFO, "Sending public key: %llu %llu", rec_pk_class.modulus, rec_pk_class.exponent);
                 safe_buffer_append(sb, iface->public_key, RSA_KEY_SIZE_BYTES);
         }
         else if (iface->enc_mode == ENC_MODE_KYBER)
@@ -528,7 +525,7 @@ void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, int mode)
                 // Shared Secret with 16 bytes in hexadecimal: 89E9D140FD7371107BBEBCF61E4390C5
                 const char *ss = "89E9D140FD7371107BBEBCF61E4390C5";
                 memcpy(shared_secret, ss, RSA_SS_SIZE_BYTES);
-                log_hex("Encapsulated Shared Secret: ", (const u_int8_t *)ss, RSA_SS_SIZE_BYTES);
+                // log_hex("Encapsulated Shared Secret: ", (const u_int8_t *)ss, RSA_SS_SIZE_BYTES);
 
                 struct key_class rec_pk_class;
                 uint8_to_key_class(rec_pk, &rec_pk_class);
@@ -540,7 +537,7 @@ void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, int mode)
         {
                 u_int8_t cipher_text[CRYPTO_CIPHERTEXTBYTES];
                 crypto_kem_enc(cipher_text, shared_secret, rec_pk);
-                log_hex("Encapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
+                // log_hex("Encapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
                 safe_buffer_append(sb, cipher_text, CRYPTO_CIPHERTEXTBYTES);
         }
 }

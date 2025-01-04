@@ -41,7 +41,6 @@ uint8_t *decrypt_dodagid(const char *dagid_hex)
 {
 	uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
-	log_hex("AES key", aes_key, 16);
 
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
@@ -52,14 +51,10 @@ uint8_t *decrypt_dodagid(const char *dagid_hex)
 		sscanf(&dagid_hex[i * 2], "%02hhx", &data_to_decrypt[i]);
 	}
 
-	log_hex("DODAGID to decrypt", data_to_decrypt, 16);
-
 	AES_ECB_decrypt(&ctx, data_to_decrypt);
 
 	static uint8_t decrypted_data[16];
 	memcpy(decrypted_data, data_to_decrypt, 16);
-
-	log_hex("Decrypted DODAGID", decrypted_data, 16);
 
 	return decrypted_data;
 }
