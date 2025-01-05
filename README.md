@@ -33,6 +33,26 @@ There is three scenarios that can be tested with the use of mininet-wifi:
 
 To run you simply do ```sudo python3 6LoWPan-<mode>.py -r```
 
+This will start the mininet with the RPL protocol running. In the scenerios there are two sensors: sensor1 and sensor2.
+
+To see the rpl packet exchange, you can access one of the sensors with xterm and run wireshark on it.
+
+Ex:
+```
+mininet-wifi> xterm sensor1
+wireshark &
+``` 
+
+If you desire to restart the RPL and see the key exchange, you shall enter the sensors with xterm and kill the current rpld processes. You can do it with ps aux and kill commands. After killing the current commands, you run the rpld with ```rpld -C lowpan-sensor<number>.conf```
+
+Ex:
+```
+mininet-wifi> xterm sensor1
+ps aux
+kill 9 # Random number for rpld process
+rpld -C lowpan-sensor1.conf
+```
+
 ## Parameters
 
 The Kyber and RSA encryptions are parametric in the way that you can use Kyber512, Kyber768, Kyber1024, RSA1024 and RSA2048.
