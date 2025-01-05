@@ -1,19 +1,18 @@
-This is rpld, as it currently is a dirty hack between radvd (log handling,
-socket, etc) and unstrung (rpl.h).
+# lowpan/RPLD
 
-As radvd requires only libc dependencies, we have more fancy stuff to make
-high level handling easier, so we need:
+This repository is a improvement of [linux-wpan/rpld](https://github.com/linux-wpan/rpld) implementing encryption schemes on the RPL protocol.
 
- - lua (version >= XXX) for config parsing
- - ev (version >= XXX) for high level timer, loop handling
- - mnl (version >= XXX) for high level netlink handling
+# Dependencies
 
-As this version is a hack and shows my experiments... it will do something
-to have a routable thing afterwards in a Linux IEEE 802.15.4 6LoWPAN network.
+- lua (version >= XXX) for config parsing
+- libev (version >= XXX) for high level timer, loop handling
+- mnl (version >= XXX) for high level netlink handling
+- [mininet-wifi](https://github.com/intrig-unicamp/mininet-wifi)
+- python 3
 
-I have 1001 ideas to make the handling better, but this comes all afterwards.
+# Build
 
-Build:
+$ git submodule init crypto/kyber crypto/RSA
 
 $ mkdir build
 
@@ -21,87 +20,23 @@ $ meson build
 
 $ ninja -C build
 
-Testing:
+# Testing
 
-If you want to test the implementation just invoke tests/start script.
+There is three scenarios that can be tested with the use of mininet-wifi:
 
-Topology (default example, can be changed by changing the script):
+- test/mininet/6LoWPan-None.py
+  This test perfoms the rpl protocol without any assymetric encryption
+- test/mininet/6LoWPan-kyber.py
+  This test performs the rpl protocol with the use of Kyber assymetric encryption
+- test/mininet/6LoWPan-RSA.py
+  This test performs the rpl protocol with the use of RSA assymetric encryption
 
-             0
-            / \
-           2   1
-             \ | \
-               3  |
-               | /
-               4
-               |
-               5
+To run you simply do ```sudo python3 6LoWPan-<mode>.py -r```
 
-The numbers are the corresponding namespace ns#.
+## Parameters
 
-RPL ranks and resulting DODAG is:
+The Kyber and RSA encryptions are parametric in the way that you can use Kyber512, Kyber768, Kyber1024, RSA1024 and RSA2048.
 
-             1 <--- root
-            / \
-           2   2
-               | \
-               3  |
-                 /
-               3
-               |
-               4
+To change the parameter of Kyber you must go to crypto/kyber/ref/params.h and change the parameter **KYBER_K**, the value of the parameter can be 2, 3 or 4 in respect to the lower to highest levels of security.
 
-OR (depends on first come first serve)
-
-             1 <--- root
-            / \
-           2   2
-             \   \
-               3  |
-                 /
-               3
-               |
-               4
-
-I did here mostly the same behaviour as unstrung implementation
-by Michael Richardson https://github.com/AnimaGUS-minerva/unstrung
-
-However you can do a:
-
-$ ip -n ns5 a
-
-remember the IPv6 address of lowpan interface.
-
-Then try a:
-
-$ ip netns exec ns0 traceroute -6 $IPV6_ADDRESS
-
-Then you see some hops to reach the node of ns4 from the root.
-
-HOW IT WORKS?
-
-It uses link-local address for as nexthop addresses. It setups a prefix
-carried by DIO and setups necessary routing tables.
-
-TODO
-
-This stuff is all early state, it has no clever logic of avoiding netlink
-messages. I have 1001 ideas to make some timeout handling so repairing
-will work, but that's all future stuff. Sorry, this implementation was
-only made to figure out how this routing protocol works...
-
-Several memory leaks and some bufferoverflows, the RPL messages need to
-be very tight and setting the right flags with the right additional data
-otherwise it will not work. Everything can be added but this works for
-now.
-
-Parent Acknowledge? I tried to implement it, I stopped working because
-it begun to finally working... sure there is a lot of security stuff
-it's one of these routing protocol implementation which just blindly
-accept router discovery messages.
-
-The fact that we only use stateless configuration we could use stateful
-compression for the used global prefix, but this will only work for
-Linux to Linux (not sure about that ... this implementation is only
-tested between Linux systems so... maybe future work but needs a
-netlink interface for stateful compression inside the Linux kernel)
+To change the parameter os RSA you must go to helpers.h and change the parameter **RSA_MODE**, the value of the parameter can be 1 or 2 in respect to RSA1024 and RSA2048.

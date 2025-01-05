@@ -27,6 +27,19 @@
 
 #include "crypto/RSA/rsa.h"
 
+#define RSA_MODE 1
+
+#if (RSA_MODE == 1)
+#define RSA_SS_SIZE_BYTES 16
+#elif (RSA_MODE == 2)
+#define RSA_SS_SIZE_BYTES 32
+#else
+#error "RSA_MODE must be in {1,2}"
+#endif
+
+#define RSA_KEY_SIZE_BYTES 16 /** Results from the append of the long long modulus + long long expoent */
+#define RSA_CIPHERTEXT_SIZE_BYTES RSA_SS_SIZE_BYTES * 8
+
 #define mzalloc(size) calloc(1, size)
 
 /* thanks mcr, I stole that form unstrung */
@@ -58,17 +71,6 @@ static inline uint8_t bits_to_bytes(uint8_t bits)
 void log_hex(const char *label, const u_int8_t *data, size_t len);
 
 int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_size);
-
-#define RSA_MODE 1
-
-#if (RSA_MODE == 1)
-#define RSA_SS_SIZE_BYTES 16
-#elif (RSA_MODE == 2)
-#define RSA_SS_SIZE_BYTES 32
-#endif
-
-#define RSA_KEY_SIZE_BYTES 16 /** Results from the append of the long long modulus + long long expoent */
-#define RSA_CIPHERTEXT_SIZE_BYTES RSA_SS_SIZE_BYTES * 8
 
 void key_class_to_uint8(struct key_class key_class, u_int8_t *key_array);
 void uint8_to_key_class(const u_int8_t *key_array, struct key_class *key_class);

@@ -128,8 +128,8 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
 
 /**
  * @brief This function is called when the dis_w timer expires.
- * It performs the key exchange and sends the dis message.
- * After the dis message, it calls the icmpv6_cb to start the rpl process.
+ * If an encryption is set, it performs the key exchange
+ * After, it sends the dis message, and after the dis message, it starts the rpl process.
  *
  * @param w
  * @param revents
@@ -142,13 +142,15 @@ static void send_dis_cb(EV_P_ ev_timer *w, int revents)
 
 	ev_timer_stop(loop, w);
 
-	send_pk(sock, iface);
-	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
-	ev_io_start(loop, &sock_watcher);
+	if (!iface->enc_mode == ENC_MODE_NONE)
+	{
+		send_pk(sock, iface);
+		ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
+		ev_io_start(loop, &sock_watcher);
 
-	ev_run(loop, 0);
+		ev_run(loop, 0);
+	}
 
-	flog(LOG_INFO, "really sending dis");
 	send_dis(sock, iface);
 	ev_async_send(loop, &icmpv6_async);
 }
@@ -183,24 +185,6 @@ static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 		/* schedule a dis at statup */
 		ev_timer_init(&iface->dis_w, send_dis_cb, 1, 1);
 		ev_timer_start(loop, &iface->dis_w);
-
-		/* If is Root, schedule dio for rpls */
-		DL_FOREACH(iface->rpls.head, r)
-		{
-			rpl = container_of(r, struct rpl, list);
-			DL_FOREACH(rpl->dags.head, d)
-			{
-				dag = container_of(d, struct dag, list);
-
-				ev_timer_init(&dag->trickle_w, trickle_cb,
-							  dag->trickle_t, dag->trickle_t);
-				ev_timer_start(loop, &dag->trickle_w);
-
-				/* TODO wrong here */
-				if (iface->dodag_root)
-					nl_add_addr(iface->ifindex, &dag->dodagid);
-			}
-		}
 	}
 
 	return 0;
