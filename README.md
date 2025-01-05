@@ -12,7 +12,7 @@ This repository is a improvement of [linux-wpan/rpld](https://github.com/linux-w
 
 # Build
 
-$ git submodule init crypto/kyber crypto/RSA
+$ git submodule update --init --recursive
 
 $ mkdir build
 
