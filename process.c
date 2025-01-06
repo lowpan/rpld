@@ -29,8 +29,6 @@
 
 #include "crypto/kyber/ref/kem.h"
 
-u_int8_t shared_secret[CRYPTO_BYTES];
-
 void dagid_to_hex(const uint8_t *rpl_dagid, char *dagid_hex)
 {
 	for (int i = 0; i < 16; i++)

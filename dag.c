@@ -30,6 +30,8 @@
 
 #include "crypto/kyber/ref/kem.h"
 
+u_int8_t shared_secret[CRYPTO_BYTES];
+
 struct peer *dag_peer_create(const struct in6_addr *addr)
 {
         struct peer *peer;

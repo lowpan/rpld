@@ -22,6 +22,8 @@
 
 #include "crypto/kyber/ref/kem.h"
 
+extern u_int8_t shared_secret[CRYPTO_BYTES];
+
 struct peer
 {
 	struct in6_addr addr;

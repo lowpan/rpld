@@ -55,14 +55,15 @@ struct nd_rpl_security
     u_int16_t rpl_sec_kim_lvl_flags; /* bit 15/14, KIM */
                                      /* bit 10-8, LVL, bit 7-0 flags */
     u_int32_t rpl_sec_counter;
-    //u_int64_t rpl_sec_ks;
-    //u_int8_t rpl_sec_ki[0]; /* depends upon kim */
+    // u_int64_t rpl_sec_ks;
+    // u_int8_t rpl_sec_ki[0]; /* depends upon kim */
 } PACKED;
 
-struct nd_rpl_padn {
-    uint8_t option_type;      // 0x01 para PadN
-    uint8_t option_length;    // N-2 (Ex: 5 -> 7 bytes de padding)
-    uint8_t padding[7];       // 7 bytes de padding zero
+struct nd_rpl_padn
+{
+    uint8_t option_type;   // 0x01 para PadN
+    uint8_t option_length; // N-2 (Ex: 5 -> 7 bytes de padding)
+    uint8_t padding[7];    // 7 bytes de padding zero
 } PACKED;
 
 #ifndef RPL_SEC_H
@@ -80,7 +81,6 @@ struct nd_rpl_receiver_keys
     u_int8_t rpl_sec_sskey[CRYPTO_BYTES];          /* Shared Secret */
 } PACKED;
 
-static u_int8_t shared_secret[CRYPTO_BYTES];
 extern struct nd_rpl_sender_keys sender_keys;
 #endif
 
