@@ -91,6 +91,20 @@ void send_dio(int sock, struct dag *dag)
 	flog(LOG_INFO, "foo! %s %d %s", dag->iface->ifname, rc, strerror(errno));
 }
 
+void send_dio_sec(int sock, struct dag *dag)
+{
+	struct safe_buffer *sb;
+	int rc;
+
+	sb = safe_buffer_new();
+	if (!sb)
+		return;
+
+	dag_build_dio_sec(dag, sb);
+	rc = really_send(sock, dag->iface, &all_rpl_addr, sb);
+	flog(LOG_INFO, "foo! %s %d %s", dag->iface->ifname, rc, strerror(errno));
+}
+
 void send_dao(int sock, const struct in6_addr *to, struct dag *dag)
 {
 	struct safe_buffer *sb;
@@ -103,6 +117,20 @@ void send_dao(int sock, const struct in6_addr *to, struct dag *dag)
 	dag_build_dao(dag, sb);
 	rc = really_send(sock, dag->iface, to, sb);
 	flog(LOG_INFO, "send_dao! %d", rc);
+}
+
+void send_dao_sec(int sock, const struct in6_addr *to, struct dag *dag)
+{
+	struct safe_buffer *sb;
+	int rc;
+
+	sb = safe_buffer_new();
+	if (!sb)
+		return;
+
+	dag_build_dao_sec(dag, sb);
+	rc = really_send(sock, dag->iface, to, sb);
+	flog(LOG_INFO, "send_dao_sec! %d", rc);
 }
 
 void send_dao_ack(int sock, const struct in6_addr *to, struct dag *dag)
@@ -119,6 +147,20 @@ void send_dao_ack(int sock, const struct in6_addr *to, struct dag *dag)
 	flog(LOG_INFO, "send_dao_ack! %d", rc);
 }
 
+void send_dao_ack_sec(int sock, const struct in6_addr *to, struct dag *dag)
+{
+	struct safe_buffer *sb;
+	int rc;
+
+	sb = safe_buffer_new();
+	if (!sb)
+		return;
+
+	dag_build_dao_ack_sec(dag, sb);
+	rc = really_send(sock, dag->iface, to, sb);
+	flog(LOG_INFO, "send_dao_ack_sec! %d", rc);
+}
+
 void send_dis(int sock, struct iface *iface)
 {
 	struct safe_buffer *sb;
@@ -131,6 +173,20 @@ void send_dis(int sock, struct iface *iface)
 	dag_build_dis(sb);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
 	flog(LOG_INFO, "send_dis! %d", rc);
+}
+
+void send_dis_sec(int sock, struct iface *iface)
+{
+        struct safe_buffer *sb;
+        int rc;
+
+        sb = safe_buffer_new();
+        if (!sb)
+                return;
+
+        dag_build_dis_sec(sb);
+        rc = really_send(sock, iface, &all_rpl_addr, sb);
+        flog(LOG_INFO, "send_dis_sec! %d", rc);
 }
 
 void send_pk(int sock, struct iface *iface)

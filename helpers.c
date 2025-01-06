@@ -21,6 +21,30 @@
 #include "config.h"
 #include "log.h"
 
+<<<<<<< HEAD
+=======
+int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_size)
+{
+	for (size_t i = 0; i < byte_array_size; i++)
+	{
+		char high_nibble = hex_string[i * 2];
+		char low_nibble = hex_string[i * 2 + 1];
+
+		if (!isxdigit(high_nibble) || !isxdigit(low_nibble))
+		{
+			// Ensure characters are valid hexadecimal digits
+			flog(LOG_ERR, "hex_to_bytes: invalid hex characters");
+			return -2;
+		}
+
+		// Convert hex characters to a single byte
+		byte_array[i] = (uint8_t)((strtol((char[]){high_nibble, '\0'}, NULL, 16) << 4) |
+								  strtol((char[]){low_nibble, '\0'}, NULL, 16));
+	}
+	return 0; // Success
+}
+
+>>>>>>> fac144d... 06/01 - encryption of dis/dio/dao/daoack messages
 int gen_stateless_addr(const struct in6_prefix *prefix,
 		       const struct iface_llinfo *llinfo,
 		       struct in6_addr *dst)

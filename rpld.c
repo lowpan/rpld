@@ -116,12 +116,20 @@ static void key_exchange_cb(EV_P_ ev_io *w, int revents)
 	}
 }
 
-static void trickle_cb(EV_P_ ev_timer *w, int revents)
+/*static void trickle_cb(EV_P_ ev_timer *w, int revents)
 {
 	struct dag *dag = container_of(w, struct dag, trickle_w);
 
 	flog(LOG_INFO, "send dio %p", dag->parent);
 	send_dio(sock, dag);
+}*/
+
+static void trickle_cb_sec(EV_P_ ev_timer *w, int revents)
+{
+	struct dag *dag = container_of(w, struct dag, trickle_w);
+
+	flog(LOG_INFO, "send dio_sec %p", dag->parent);
+	send_dio_sec(sock, dag);
 }
 
 static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
@@ -129,7 +137,7 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
 	ev_break(loop, EVBREAK_ALL);
 }
 
-static void send_dis_cb(EV_P_ ev_timer *w, int revents)
+/*static void send_dis_cb(EV_P_ ev_timer *w, int revents)
 {
 	flog(LOG_INFO, "send_dis_cb");
 	struct iface *iface = container_of(w, struct iface, dis_w);
@@ -137,23 +145,55 @@ static void send_dis_cb(EV_P_ ev_timer *w, int revents)
 
 	ev_timer_stop(loop, w);
 
+<<<<<<< HEAD
 	send_pk(sock, iface);
 	// ev_io sock_watcher;
+=======
+	//send_pk(sock, iface);
+>>>>>>> fac144d... 06/01 - encryption of dis/dio/dao/daoack messages
 	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
 	ev_io_start(loop, &sock_watcher);
 
 	ev_run(loop, 0);
 
 	flog(LOG_INFO, "really sending dis");
-	send_dis(sock, iface);
+	send_dis_sec(sock, iface);
 	ev_async_send(loop, &icmpv6_async);
+}*/
+
+static void send_dis_sec_cb(EV_P_ ev_timer *w, int revents)
+{
+    struct iface *iface = container_of(w, struct iface, dis_w);
+
+    ev_timer_stop(loop, w);
+    send_pk(sock, iface);
+
+    ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
+    ev_io_start(loop, &sock_watcher);
+
+    ev_run(loop, 0);
+
+    flog(LOG_INFO, "really sending dis");
+    send_dis_sec(sock, iface);
+    ev_async_send(loop, &icmpv6_async);
+
+    send_dis_sec(sock, iface);
+    ev_async_send(loop, &icmpv6_async);
 }
 
 /* TODO move somewhere else */
-struct ev_loop *foo;
+/*struct ev_loop *foo;
 void dag_init_timer(struct dag *dag)
 {
 	ev_timer_init(&dag->trickle_w, trickle_cb,
+				  dag->trickle_t, dag->trickle_t);
+	ev_timer_start(foo, &dag->trickle_w);
+}*/
+
+struct ev_loop *foo;
+void dag_init_timer(struct dag *dag)
+{
+	ev_timer_init(&dag->trickle_w, trickle_cb_sec,
 				  dag->trickle_t, dag->trickle_t);
 	ev_timer_start(foo, &dag->trickle_w);
 }
@@ -169,8 +209,13 @@ static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 	{
 		iface = container_of(i, struct iface, list);
 
+<<<<<<< HEAD
 		ev_timer_init(&iface->dis_w, send_dis_cb, 1, 1);
 		/* schedule a dis at statup */
+=======
+		/* schedule a dis at statup */
+		ev_timer_init(&iface->dis_w, send_dis_sec_cb, 1, 1);
+>>>>>>> fac144d... 06/01 - encryption of dis/dio/dao/daoack messages
 		ev_timer_start(loop, &iface->dis_w);
 
 		DL_FOREACH(iface->rpls.head, r)
@@ -180,7 +225,7 @@ static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 			{
 				dag = container_of(d, struct dag, list);
 
-				ev_timer_init(&dag->trickle_w, trickle_cb,
+				ev_timer_init(&dag->trickle_w, trickle_cb_sec,
 							  dag->trickle_t, dag->trickle_t);
 				ev_timer_start(loop, &dag->trickle_w);
 
