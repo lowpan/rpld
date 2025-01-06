@@ -107,14 +107,9 @@ struct peer *dag_peer_create(const struct in6_addr *addr);
 void dag_build_dao(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dao_ack(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dis(struct safe_buffer *sb);
-<<<<<<< HEAD
-void dag_build_pk(struct safe_buffer *sb);
-void dag_build_ct(struct safe_buffer *sb, const u_int8_t pk[CRYPTO_PUBLICKEYBYTES]);
-=======
 void dag_build_dis_sec(struct safe_buffer *sb);
 void dag_build_pk(struct safe_buffer *sb, struct iface *iface);
 void dag_build_ct(struct safe_buffer *sb, const u_int8_t rec_pk[CRYPTO_PUBLICKEYBYTES]);
->>>>>>> fac144d... 06/01 - encryption of dis/dio/dao/daoack messages
 struct child *dag_lookup_child_or_create(struct dag *dag,
 										 const struct in6_addr *addr,
 										 const struct in6_addr *from);

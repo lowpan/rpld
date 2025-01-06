@@ -145,12 +145,7 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
 
 	ev_timer_stop(loop, w);
 
-<<<<<<< HEAD
-	send_pk(sock, iface);
-	// ev_io sock_watcher;
-=======
 	//send_pk(sock, iface);
->>>>>>> fac144d... 06/01 - encryption of dis/dio/dao/daoack messages
 	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
 	ev_io_start(loop, &sock_watcher);
 
@@ -163,22 +158,22 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
 
 static void send_dis_sec_cb(EV_P_ ev_timer *w, int revents)
 {
-    struct iface *iface = container_of(w, struct iface, dis_w);
+	struct iface *iface = container_of(w, struct iface, dis_w);
 
-    ev_timer_stop(loop, w);
-    send_pk(sock, iface);
+	ev_timer_stop(loop, w);
+	send_pk(sock, iface);
 
-    ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
-    ev_io_start(loop, &sock_watcher);
+	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
+	ev_io_start(loop, &sock_watcher);
 
-    ev_run(loop, 0);
+	ev_run(loop, 0);
 
-    flog(LOG_INFO, "really sending dis");
-    send_dis_sec(sock, iface);
-    ev_async_send(loop, &icmpv6_async);
+	flog(LOG_INFO, "really sending dis");
+	send_dis_sec(sock, iface);
+	ev_async_send(loop, &icmpv6_async);
 
-    send_dis_sec(sock, iface);
-    ev_async_send(loop, &icmpv6_async);
+	// send_dis_sec(sock, iface);
+	// ev_async_send(loop, &icmpv6_async);
 }
 
 /* TODO move somewhere else */
@@ -209,13 +204,8 @@ static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 	{
 		iface = container_of(i, struct iface, list);
 
-<<<<<<< HEAD
-		ev_timer_init(&iface->dis_w, send_dis_cb, 1, 1);
-		/* schedule a dis at statup */
-=======
 		/* schedule a dis at statup */
 		ev_timer_init(&iface->dis_w, send_dis_sec_cb, 1, 1);
->>>>>>> fac144d... 06/01 - encryption of dis/dio/dao/daoack messages
 		ev_timer_start(loop, &iface->dis_w);
 
 		DL_FOREACH(iface->rpls.head, r)
@@ -369,12 +359,6 @@ int main(int argc, char *argv[])
 	// Initialize the async watcher for signaling
 	ev_async_init(&icmpv6_async, icmpv6_async_cb);
 	ev_async_start(loop, &icmpv6_async);
-
-	// ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
-	// ev_io_start(loop, &sock_watcher);
-
-	// ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
-	// ev_io_start(loop, &sock_watcher);
 
 	ev_run(loop, 0);
 

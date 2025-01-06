@@ -177,16 +177,16 @@ void send_dis(int sock, struct iface *iface)
 
 void send_dis_sec(int sock, struct iface *iface)
 {
-        struct safe_buffer *sb;
-        int rc;
+	struct safe_buffer *sb;
+	int rc;
 
-        sb = safe_buffer_new();
-        if (!sb)
-                return;
+	sb = safe_buffer_new();
+	if (!sb)
+		return;
 
-        dag_build_dis_sec(sb);
-        rc = really_send(sock, iface, &all_rpl_addr, sb);
-        flog(LOG_INFO, "send_dis_sec! %d", rc);
+	dag_build_dis_sec(sb);
+	rc = really_send(sock, iface, &all_rpl_addr, sb);
+	flog(LOG_INFO, "send_dis_sec! %d", rc);
 }
 
 void send_pk(int sock, struct iface *iface)
@@ -199,7 +199,7 @@ void send_pk(int sock, struct iface *iface)
 	if (!sb)
 		return;
 
-	dag_build_pk(sb);
+	dag_build_pk(sb, iface);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
 	flog(LOG_INFO, "really sent pk! %d", rc);
 }

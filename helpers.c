@@ -21,8 +21,6 @@
 #include "config.h"
 #include "log.h"
 
-<<<<<<< HEAD
-=======
 int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_size)
 {
 	for (size_t i = 0; i < byte_array_size; i++)
@@ -44,10 +42,9 @@ int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_
 	return 0; // Success
 }
 
->>>>>>> fac144d... 06/01 - encryption of dis/dio/dao/daoack messages
 int gen_stateless_addr(const struct in6_prefix *prefix,
-		       const struct iface_llinfo *llinfo,
-		       struct in6_addr *dst)
+					   const struct iface_llinfo *llinfo,
+					   struct in6_addr *dst)
 {
 	uint8_t len = bits_to_bytes(prefix->len);
 	int i;
@@ -75,7 +72,8 @@ __attribute__((format(printf, 1, 2))) static char *strdupf(char const *format, .
 	va_start(va, format);
 	char *strp = 0;
 	int rc = vasprintf(&strp, format, va);
-	if (rc == -1 || !strp) {
+	if (rc == -1 || !strp)
+	{
 		flog(LOG_ERR, "vasprintf failed: %s", strerror(errno));
 		exit(-1);
 	}
@@ -94,12 +92,14 @@ int set_var(const char *var, uint32_t val)
 		goto cleanup;
 
 	fp = fopen(var, "w");
-	if (!fp) {
+	if (!fp)
+	{
 		flog(LOG_ERR, "failed to set %s: %s", var, strerror(errno));
 		goto cleanup;
 	}
 
-	if (0 > fprintf(fp, "%u", val)) {
+	if (0 > fprintf(fp, "%u", val))
+	{
 		goto cleanup;
 	}
 
@@ -126,13 +126,15 @@ int set_interface_var(const char *iface, const char *var, const char *name, uint
 		goto cleanup;
 
 	fp = fopen(spath, "w");
-	if (!fp) {
+	if (!fp)
+	{
 		if (name)
 			flog(LOG_ERR, "failed to set %s (%u) for %s: %s", name, val, iface, strerror(errno));
 		goto cleanup;
 	}
 
-	if (0 > fprintf(fp, "%u", val)) {
+	if (0 > fprintf(fp, "%u", val))
+	{
 		goto cleanup;
 	}
 
