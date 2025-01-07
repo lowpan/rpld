@@ -56,7 +56,7 @@ static void usage(FILE *o, const char *pname)
 
 static void icmpv6_cb(EV_P_ ev_io *w, int revents)
 {
-	flog(LOG_DEBUG, "icmpv6_cb");
+	flog(LOG_INFO, "icmpv6_cb");
 	int len, hoplimit;
 	struct sockaddr_in6 rcv_addr;
 	struct in6_pktinfo *pkt_info = NULL;
@@ -80,13 +80,16 @@ static void icmpv6_cb(EV_P_ ev_io *w, int revents)
 
 static void icmpv6_async_cb(EV_P_ ev_async *w, int revents)
 {
-	flog(LOG_DEBUG, "icmpv6_async_cb");
+	flog(LOG_INFO, "icmpv6_async_cb");
+	// ev_io sock_watcher;
 
 	// Reinitialize the socket watcher for ICMPv6 handling
 	ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
 	ev_io_start(loop, &sock_watcher);
 
 	ev_run(loop, 0);
+
+	// ev_io_start(loop, &sock_watcher);
 }
 
 static void key_exchange_cb(EV_P_ ev_io *w, int revents)
@@ -113,12 +116,20 @@ static void key_exchange_cb(EV_P_ ev_io *w, int revents)
 	}
 }
 
-static void trickle_cb(EV_P_ ev_timer *w, int revents)
+/*static void trickle_cb(EV_P_ ev_timer *w, int revents)
 {
 	struct dag *dag = container_of(w, struct dag, trickle_w);
 
 	flog(LOG_INFO, "send dio %p", dag->parent);
 	send_dio(sock, dag);
+}*/
+
+static void trickle_cb_sec(EV_P_ ev_timer *w, int revents)
+{
+	struct dag *dag = container_of(w, struct dag, trickle_w);
+
+	flog(LOG_INFO, "send dio_sec %p", dag->parent);
+	send_dio_sec(sock, dag);
 }
 
 static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
@@ -134,32 +145,61 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
  * @param w
  * @param revents
  */
-static void send_dis_cb(EV_P_ ev_timer *w, int revents)
+// static void send_dis_cb(EV_P_ ev_timer *w, int revents)
+// {
+// 	flog(LOG_INFO, "send_dis_cb");
+// 	struct iface *iface = container_of(w, struct iface, dis_w);
+// 	flog(LOG_INFO, "iface %s", iface->ifname);
+
+// 	ev_timer_stop(loop, w);
+
+// 	if (!iface->enc_mode == ENC_MODE_NONE)
+// 	{
+// 		send_pk(sock, iface);
+// 		ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
+// 		ev_io_start(loop, &sock_watcher);
+
+// 		ev_run(loop, 0);
+// 	}
+
+// 	send_dis(sock, iface);
+// 	ev_async_send(loop, &icmpv6_async);
+// }
+
+static void send_dis_sec_cb(EV_P_ ev_timer *w, int revents)
 {
-	flog(LOG_INFO, "send_dis_cb");
 	struct iface *iface = container_of(w, struct iface, dis_w);
-	flog(LOG_INFO, "iface %s", iface->ifname);
 
 	ev_timer_stop(loop, w);
+	if (!iface->dodag_root)
+	send_pk(sock, iface);
 
-	if (!iface->enc_mode == ENC_MODE_NONE)
-	{
-		send_pk(sock, iface);
-		ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
-		ev_io_start(loop, &sock_watcher);
+	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
+	ev_io_start(loop, &sock_watcher);
 
-		ev_run(loop, 0);
-	}
+	ev_run(loop, 0);
 
-	send_dis(sock, iface);
+	flog(LOG_INFO, "really sending dis");
+	send_dis_sec(sock, iface);
 	ev_async_send(loop, &icmpv6_async);
+
+	// send_dis_sec(sock, iface);
+	// ev_async_send(loop, &icmpv6_async);
 }
 
 /* TODO move somewhere else */
-struct ev_loop *foo;
+/*struct ev_loop *foo;
 void dag_init_timer(struct dag *dag)
 {
 	ev_timer_init(&dag->trickle_w, trickle_cb,
+				  dag->trickle_t, dag->trickle_t);
+	ev_timer_start(foo, &dag->trickle_w);
+}*/
+
+struct ev_loop *foo;
+void dag_init_timer(struct dag *dag)
+{
+	ev_timer_init(&dag->trickle_w, trickle_cb_sec,
 				  dag->trickle_t, dag->trickle_t);
 	ev_timer_start(foo, &dag->trickle_w);
 }
@@ -177,14 +217,30 @@ static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 	struct rpl *rpl;
 	struct dag *dag;
 
-	/* For each iface in the conf file */
 	DL_FOREACH(ifaces->head, i)
 	{
 		iface = container_of(i, struct iface, list);
 
 		/* schedule a dis at statup */
-		ev_timer_init(&iface->dis_w, send_dis_cb, 1, 1);
+		ev_timer_init(&iface->dis_w, send_dis_sec_cb, 1, 1);
 		ev_timer_start(loop, &iface->dis_w);
+
+		// DL_FOREACH(iface->rpls.head, r)
+		// {
+		// 	rpl = container_of(r, struct rpl, list);
+		// 	DL_FOREACH(rpl->dags.head, d)
+		// 	{
+		// 		dag = container_of(d, struct dag, list);
+
+		// 		ev_timer_init(&dag->trickle_w, trickle_cb_sec,
+		// 					  dag->trickle_t, dag->trickle_t);
+		// 		ev_timer_start(loop, &dag->trickle_w);
+
+		// 		/* TODO wrong here */
+		// 		if (iface->dodag_root)
+		// 			nl_add_addr(iface->ifindex, &dag->dodagid);
+		// 	}
+		// }
 	}
 
 	return 0;

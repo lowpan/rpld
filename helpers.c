@@ -16,7 +16,6 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <ctype.h>
 
 #include "helpers.h"
 #include "config.h"

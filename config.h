@@ -22,9 +22,9 @@
 #include "dag.h"
 #include "list.h"
 
-#define MAX_RPL_INSTANCEID UINT8_MAX
-#define DEFAULT_TICKLE_T 5
-#define DEFAULT_DAG_VERSION 1
+#define MAX_RPL_INSTANCEID      UINT8_MAX
+#define DEFAULT_TICKLE_T        5
+#define DEFAULT_DAG_VERSION     1
 
 enum enc_mode
 {
@@ -40,8 +40,7 @@ struct iface_llinfo
         uint32_t ifindex;
 };
 
-struct iface
-{
+struct iface {
         char ifname[IFNAMSIZ];
         uint32_t ifindex;
 
@@ -64,7 +63,7 @@ struct iface
         struct list list;
 };
 
-const uint8_t *get_aes_key(void);
+const uint8_t* get_aes_key(void);
 int config_load(const char *filename, struct list_head *ifaces);
 void config_free(struct list_head *ifaces);
 

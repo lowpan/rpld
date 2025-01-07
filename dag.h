@@ -100,13 +100,16 @@ struct dag *dag_create(struct iface *iface, uint8_t instanceid,
 					   const struct in6_prefix *dest);
 void dag_free(struct dag *dag);
 void dag_build_dio(struct dag *dag, struct safe_buffer *sb);
+void dag_build_dio_sec(struct dag *dag, struct safe_buffer *sb);
 struct dag *dag_lookup(const struct iface *iface, uint8_t instance_id,
 					   const struct in6_addr *dodagid);
 void dag_process_dio(struct dag *dag);
+void dag_process_dio_sec(struct dag *dag);
 struct peer *dag_peer_create(const struct in6_addr *addr);
 void dag_build_dao(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dao_ack(struct dag *dag, struct safe_buffer *sb);
 void dag_build_dis(struct safe_buffer *sb);
+void dag_build_dis_sec(struct safe_buffer *sb);
 void dag_build_pk(struct safe_buffer *sb, struct iface *iface);
 void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, int mode);
 struct child *dag_lookup_child_or_create(struct dag *dag,
