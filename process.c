@@ -406,10 +406,11 @@ void decrypt_dao_sec(void *msg, uint8_t *decrypted_data)
 {
 	flog(LOG_INFO, "decrypt_dao_sec");
 	uint8_t encrypted_data[32];
-	memcpy(encrypted_data, msg + 9, 4);
-	memcpy(encrypted_data + 4, msg + 51, 5);
-	memcpy(encrypted_data + 9, msg + 58, 5);
-	memcpy(encrypted_data + 14, msg + 65, 2);
+	memcpy(encrypted_data, msg + 9, 1);
+	memcpy(encrypted_data + 1, msg + 11, 2);
+	memcpy(encrypted_data + 3, msg + 51, 5);
+	memcpy(encrypted_data + 8, msg + 58, 5);
+	memcpy(encrypted_data + 13, msg + 65, 3);
 	memcpy(encrypted_data + 16, msg + 13, 16);
 
 	const uint8_t aes_key[16];
@@ -427,13 +428,13 @@ void decrypt_dao_sec(void *msg, uint8_t *decrypted_data)
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
 }
 
-static void process_dao_sec(int sock, struct iface *iface, void *msg,
-							size_t len, struct sockaddr_in6 *addr)
+static void process_dao_sec(int sock, struct iface *iface, const void *msg,
+			size_t len, struct sockaddr_in6 *addr)
 {
 	const struct nd_rpl_security *dao_sec = (const struct nd_rpl_security *)msg;
 	const struct nd_rpl_dao *dao = (const struct nd_rpl_dao *)(msg + sizeof(struct nd_rpl_security) + 1);
 	const struct rpl_dao_target *target;
-	// const struct nd_rpl_dao *dao = msg;
+	//const struct nd_rpl_dao *dao = msg;
 	char addr_str[INET6_ADDRSTRLEN];
 	const struct nd_rpl_opt *opt;
 	const unsigned char *p;
@@ -443,34 +444,33 @@ static void process_dao_sec(int sock, struct iface *iface, void *msg,
 	int optlen;
 	int rc;
 
+	log_hex("msg in process_dao_sec", msg, len);
+
 	uint8_t decrypted_dao[32];
 
 	decrypt_dao_sec(msg, decrypted_dao);
-	// log_hex("DECRYPTED DAO", decrypted_dao, 32);
 
-	log_hex("msg information before decryption", msg, len);
-
-	memcpy(msg + 9, decrypted_dao, 4);
-	memcpy(msg + 51, decrypted_dao + 4, 5);
-	memcpy(msg + 58, decrypted_dao + 9, 5);
-	memcpy(msg + 65, decrypted_dao + 13, 2);
+	memcpy(msg + 9, decrypted_dao, 1);
+    memcpy(msg + 11, decrypted_dao + 1, 2);
+	memcpy(msg + 51, decrypted_dao + 3, 5);
+	memcpy(msg + 58, decrypted_dao + 8, 5);
+	memcpy(msg + 65, decrypted_dao + 13, 3);
 	memcpy(msg + 13, decrypted_dao + 16, 16);
 
 	log_hex("msg information after decryption", msg, len);
 
-	if (len < sizeof(*dao))
-	{
+	if (len < sizeof(*dao)) {
 		flog(LOG_INFO, "dao length mismatch, drop");
 		return;
 	}
 	len -= sizeof(*dao);
+
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
 	flog(LOG_INFO, "received dao_sec %s", addr_str);
 
 	dag = dag_lookup(iface, dao->rpl_instanceid,
-					 &dao->rpl_dagid);
-	if (!dag)
-	{
+			 &dao->rpl_dagid);
+	if (!dag) {
 		addrtostr(&dao->rpl_dagid, addr_str, sizeof(addr_str));
 		flog(LOG_INFO, "can't find dag sec %s", addr_str);
 		return;
@@ -480,23 +480,19 @@ static void process_dao_sec(int sock, struct iface *iface, void *msg,
 	p += sizeof(*dao);
 	optlen = len;
 	flog(LOG_INFO, "dao optlen %d", optlen);
-	while (optlen > 0)
-	{
+	while (optlen > 0) {
 		opt = (const struct nd_rpl_opt *)p;
 
-		if (optlen < sizeof(*opt))
-		{
+		if (optlen < sizeof(*opt)) {
 			flog(LOG_INFO, "rpl opt length mismatch, drop");
 			return;
 		}
 
 		flog(LOG_INFO, "dao opt %d", opt->type);
-		switch (opt->type)
-		{
+		switch (opt->type) {
 		case RPL_DAO_RPLTARGET:
 			target = (const struct rpl_dao_target *)p;
-			if (optlen < sizeof(*opt))
-			{
+			if (optlen < sizeof(*opt)) {
 				flog(LOG_INFO, "rpl target length mismatch, drop");
 				return;
 			}
@@ -504,8 +500,8 @@ static void process_dao_sec(int sock, struct iface *iface, void *msg,
 			addrtostr(&target->rpl_dao_prefix, addr_str, sizeof(addr_str));
 			flog(LOG_INFO, "dao_sec target %s", addr_str);
 			dag_lookup_child_or_create(dag,
-									   &target->rpl_dao_prefix,
-									   &addr->sin6_addr);
+						   &target->rpl_dao_prefix,
+						   &addr->sin6_addr);
 			break;
 		default:
 			/* IGNORE NOT SUPPORTED */
@@ -518,12 +514,11 @@ static void process_dao_sec(int sock, struct iface *iface, void *msg,
 		flog(LOG_INFO, "dao optlen %d", optlen);
 	}
 
-	DL_FOREACH(dag->childs.head, c)
-	{
+	DL_FOREACH(dag->childs.head, c) {
 		child = container_of(c, struct child, list);
 
 		rc = nl_add_route_via(dag->iface->ifindex, &child->addr,
-							  &child->from);
+				      &child->from);
 		flog(LOG_INFO, "via route %d %s", rc, strerror(errno));
 	}
 
@@ -581,10 +576,11 @@ void decrypt_daoack_sec(const void *msg, uint8_t *decrypted_data)
 {
 	flog(LOG_INFO, "decrypt_daoack_sec");
 	uint8_t encrypted_data[32];
-	memcpy(encrypted_data, msg + 9, 4);
-	memcpy(encrypted_data + 4, msg + 31, 5);
-	memcpy(encrypted_data + 9, msg + 38, 5);
-	memcpy(encrypted_data + 14, msg + 45, 2);
+	memcpy(encrypted_data, msg + 9, 1);
+	memcpy(encrypted_data + 1, msg + 11, 2);
+	memcpy(encrypted_data + 3, msg + 31, 5);
+	memcpy(encrypted_data + 8, msg + 38, 5);
+	memcpy(encrypted_data + 13, msg + 45, 3);
 	memcpy(encrypted_data + 16, msg + 13, 16);
 
 	const uint8_t aes_key[16];
@@ -620,10 +616,11 @@ static void process_daoack_sec(int sock, struct iface *iface, const void *msg,
 
 	log_hex("msg information before decryption", msg, len);
 
-	memcpy(msg + 9, decrypted_daoack, 4);
-	memcpy(msg + 31, decrypted_daoack + 4, 5);
-	memcpy(msg + 38, decrypted_daoack + 9, 5);
-	memcpy(msg + 45, decrypted_daoack + 13, 2);
+	memcpy(msg + 9, decrypted_daoack, 1);
+    memcpy(msg + 11, decrypted_daoack + 1, 2);
+	memcpy(msg + 31, decrypted_daoack + 3, 5);
+	memcpy(msg + 38, decrypted_daoack + 8, 5);
+	memcpy(msg + 45, decrypted_daoack + 13, 3);
 	memcpy(msg + 13, decrypted_daoack + 16, 16);
 
 	log_hex("msg information after decryption", msg, len);
@@ -707,7 +704,7 @@ static void process_dis_sec(int sock, struct iface *iface, void *msg,
 	struct rpl *rpl;
 	struct dag *dag;
 
-	/*log_hex("Encrypted DIS in process_dis_sec", msg, len);
+	log_hex("Encrypted DIS in process_dis_sec", msg, len);
 
 	uint8_t decrypted_dis[16];
 
@@ -722,7 +719,7 @@ static void process_dis_sec(int sock, struct iface *iface, void *msg,
 	memcpy(msg + 20, decrypted_dis + 7, 5);
 	memcpy(msg + 27, decrypted_dis + 12, 4);
 
-	log_hex("msg information after decryption", msg, len);*/
+	log_hex("msg information after decryption", msg, len);
 
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
 	flog(LOG_INFO, "received dis %s", addr_str);
