@@ -748,16 +748,21 @@ static void process_dis_sec(int sock, struct iface *iface, void *msg,
 static void process_pk_sec_exch(int sock, struct iface *iface, const void *msg,
 								size_t len)
 {
-	u_int8_t pk[CRYPTO_PUBLICKEYBYTES];
-	if (len < CRYPTO_PUBLICKEYBYTES)
-	{
-		flog(LOG_WARNING, "received packet too short for public key exchange");
-		return;
-	}
-	memcpy(pk, msg, CRYPTO_PUBLICKEYBYTES);
-	// log_hex("Saved Received Public Key: ", pk, CRYPTO_PUBLICKEYBYTES);
+	if (iface->dodag_root) {
+		u_int8_t pk[CRYPTO_PUBLICKEYBYTES];
+		if (len < CRYPTO_PUBLICKEYBYTES)
+		{
+			flog(LOG_WARNING, "received packet too short for public key exchange");
+			return;
+		}
+		memcpy(pk, msg, CRYPTO_PUBLICKEYBYTES);
+		// log_hex("Saved Received Public Key: ", pk, CRYPTO_PUBLICKEYBYTES);
 
-	send_ct(sock, iface, &pk);
+		send_ct(sock, iface, &pk);
+	}
+	else {
+		flog(LOG_WARNING, "received public key exchange from non-root node");
+	}
 }
 
 static void process_ct_sec_exch(const void *msg, size_t len)

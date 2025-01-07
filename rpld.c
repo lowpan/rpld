@@ -161,6 +161,7 @@ static void send_dis_sec_cb(EV_P_ ev_timer *w, int revents)
 	struct iface *iface = container_of(w, struct iface, dis_w);
 
 	ev_timer_stop(loop, w);
+	if (!iface->dodag_root)
 	send_pk(sock, iface);
 
 	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
