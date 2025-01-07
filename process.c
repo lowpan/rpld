@@ -46,6 +46,7 @@ uint8_t *decrypt_dodagid(const char *dagid_hex)
 	//  flog(LOG_INFO, "DODAGID antes da descriptografia %s", dagid_hex);
 
 	const uint8_t *aes_key = get_aes_key();
+	log_hex("AES key", aes_key, 16);
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
 
@@ -176,6 +177,7 @@ static void process_dio(int sock, struct iface *iface, const void *msg,
 
 void decrypt_dio_sec(void *msg, uint8_t *decrypted_data)
 {
+	flog(LOG_INFO, "decrypt dio_sec");
 	uint8_t encrypted_data[32];
 	memcpy(encrypted_data, msg + 9, 8);
 	memcpy(encrypted_data + 8, msg + 51, 5);
@@ -184,16 +186,17 @@ void decrypt_dio_sec(void *msg, uint8_t *decrypted_data)
 
 	const uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
+	log_hex("decrypt_dio_sec AES key", aes_key, 16);
 
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
 
+	log_hex("DIO to decrypt", encrypted_data, 32);
 	AES_ECB_decrypt(&ctx, encrypted_data);
 	AES_ECB_decrypt(&ctx, encrypted_data + 16);
+	log_hex("DIO decrypted", encrypted_data, 32);
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
-
-	flog(LOG_INFO, "decrypt dio_sec");
 }
 
 static void process_dio_sec(int sock, struct iface *iface, void *msg,
@@ -401,6 +404,7 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 
 void decrypt_dao_sec(void *msg, uint8_t *decrypted_data)
 {
+	flog(LOG_INFO, "decrypt_dao_sec");
 	uint8_t encrypted_data[32];
 	memcpy(encrypted_data, msg + 9, 4);
 	memcpy(encrypted_data + 4, msg + 51, 5);
@@ -410,16 +414,17 @@ void decrypt_dao_sec(void *msg, uint8_t *decrypted_data)
 
 	const uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
+	log_hex("decrypt_dao_sec AES key", aes_key, 16);
 
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
 
+	log_hex("DAO to decrypt", encrypted_data, 32);
 	AES_ECB_decrypt(&ctx, encrypted_data);
 	AES_ECB_decrypt(&ctx, encrypted_data + 16);
+	log_hex("DAO decrypted", encrypted_data, 32);
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
-
-	flog(LOG_INFO, "decrypt dio_sec");
 }
 
 static void process_dao_sec(int sock, struct iface *iface, void *msg,
@@ -574,6 +579,7 @@ static void process_daoack(int sock, struct iface *iface, const void *msg,
 
 void decrypt_daoack_sec(const void *msg, uint8_t *decrypted_data)
 {
+	flog(LOG_INFO, "decrypt_daoack_sec");
 	uint8_t encrypted_data[32];
 	memcpy(encrypted_data, msg + 9, 4);
 	memcpy(encrypted_data + 4, msg + 31, 5);
@@ -583,15 +589,17 @@ void decrypt_daoack_sec(const void *msg, uint8_t *decrypted_data)
 
 	const uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
+	log_hex("decrypt_daoack_sec AES key", aes_key, 16);
 
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
 
+	log_hex("DAOACK to decrypt", encrypted_data, 32);
 	AES_ECB_decrypt(&ctx, encrypted_data);
 	AES_ECB_decrypt(&ctx, encrypted_data + 16);
+	log_hex("DAOACK decrypted", encrypted_data, 32);
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
-	flog(LOG_INFO, "decrypt dioack_sec");
 }
 
 static void process_daoack_sec(int sock, struct iface *iface, const void *msg,
@@ -670,6 +678,7 @@ static void process_dis(int sock, struct iface *iface, void *msg,
 
 void decrypt_dis_sec(void *msg, uint8_t *decrypted_data)
 {
+	flog(LOG_INFO, "decrypt_dis_sec");
 	uint8_t encrypted_data[16];
 	memcpy(encrypted_data, msg + 8, 2);
 	memcpy(encrypted_data + 2, msg + 13, 5);
@@ -678,15 +687,16 @@ void decrypt_dis_sec(void *msg, uint8_t *decrypted_data)
 
 	const uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
+	log_hex("decrypt_dis_sec AES key", aes_key, 16);
 
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
 
+	log_hex("DIS to decrypt", encrypted_data, 16);
 	AES_ECB_decrypt(&ctx, encrypted_data);
+	log_hex("DIS decrypted", encrypted_data, 16);
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
-
-	flog(LOG_INFO, "decrypt dis_sec");
 }
 
 static void process_dis_sec(int sock, struct iface *iface, void *msg,

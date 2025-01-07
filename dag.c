@@ -339,6 +339,7 @@ uint8_t *dag_encrypt_dodagid(const char *dodagid_hex)
         // flog(LOG_INFO, "Verificando o recebimento de DODAGID dentro da função de criptografia %s", dodagid_hex);
 
         const uint8_t *aes_key = get_aes_key();
+        log_hex("AES key", aes_key, 16);
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
@@ -428,6 +429,7 @@ void dag_process_dio(struct dag *dag)
 
 void encrypt_dio(struct nd_rpl_dio *dio, struct nd_rpl_padn *padn, struct nd_rpl_padn *padn_, uint8_t *encrypted_data)
 {
+        flog(LOG_INFO, "encrypt_dio");
         uint8_t data_to_encrypt[32];
         memcpy(data_to_encrypt, dio, offsetof(struct nd_rpl_dio, rpl_dagid));
         memcpy(data_to_encrypt + offsetof(struct nd_rpl_dio, rpl_dagid), padn->padding, padn->option_length);
@@ -436,16 +438,17 @@ void encrypt_dio(struct nd_rpl_dio *dio, struct nd_rpl_padn *padn, struct nd_rpl
 
         const uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
+        log_hex("encrypt_dio AES key", aes_key, 16);
 
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
+        log_hex("DIO to encrypt", data_to_encrypt, 32);
         AES_ECB_encrypt(&ctx, data_to_encrypt);
         AES_ECB_encrypt(&ctx, data_to_encrypt + 16);
+        log_hex("DIO encrypted", data_to_encrypt, 32);
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
-
-        flog(LOG_INFO, "encrypt dio_sec");
 }
 
 void dag_build_dio_sec(struct dag *dag, struct safe_buffer *sb)
@@ -541,6 +544,7 @@ void dag_build_dao_ack(struct dag *dag, struct safe_buffer *sb)
 
 void encrypt_daoack_sec(struct nd_rpl_daoack *dao, struct nd_rpl_padn *padn, struct nd_rpl_padn *padn1, struct nd_rpl_padn *padn_, uint8_t *encrypted_data)
 {
+        flog(LOG_INFO, "encrypt_daoack_sec");
         uint8_t data_to_encrypt[32];
         memcpy(data_to_encrypt, dao, offsetof(struct nd_rpl_daoack, rpl_dagid));
         memcpy(data_to_encrypt + offsetof(struct nd_rpl_daoack, rpl_dagid), padn->padding, padn->option_length);
@@ -550,15 +554,17 @@ void encrypt_daoack_sec(struct nd_rpl_daoack *dao, struct nd_rpl_padn *padn, str
 
         const uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
+        log_hex("encrypt_daoack_sec AES key", aes_key, 16);
 
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
+        log_hex("DAO ACK to encrypt", data_to_encrypt, 32);
         AES_ECB_encrypt(&ctx, data_to_encrypt);
         AES_ECB_encrypt(&ctx, data_to_encrypt + 16);
+        log_hex("DAO ACK encrypted", data_to_encrypt, 32);
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
-        flog(LOG_INFO, "encrypt daoack_sec");
 }
 
 void dag_build_dao_ack_sec(struct dag *dag, struct safe_buffer *sb)
@@ -679,27 +685,26 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb)
 
 void encrypt_dao(struct nd_rpl_dao *dao, struct nd_rpl_padn *padn, struct nd_rpl_padn *padn1, struct nd_rpl_padn *padn_, uint8_t *encrypted_data)
 {
+        flog(LOG_INFO, "encrypt_dao");
         uint8_t data_to_encrypt[32];
         memcpy(data_to_encrypt, dao, offsetof(struct nd_rpl_dao, rpl_dagid));
         memcpy(data_to_encrypt + offsetof(struct nd_rpl_dao, rpl_dagid), padn->padding, padn->option_length);
         memcpy(data_to_encrypt + offsetof(struct nd_rpl_dao, rpl_dagid) + padn->option_length, padn1->padding, padn1->option_length);
         memcpy(data_to_encrypt + offsetof(struct nd_rpl_dao, rpl_dagid) + padn->option_length + padn1->option_length, padn_->padding, padn_->option_length);
         memcpy(data_to_encrypt + offsetof(struct nd_rpl_dao, rpl_dagid) + padn->option_length + padn1->option_length + padn_->option_length, dao->rpl_dagid.s6_addr, 16);
-        log_hex("DAO DATA", data_to_encrypt, 32);
         const uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
-        log_hex("AES KEY IN ENCRYPT DAO", aes_key, 16);
+        log_hex("encrypt_dao AES key", aes_key, 16);
 
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
+        log_hex("DAO to encrypt", data_to_encrypt, 32);
         AES_ECB_encrypt(&ctx, data_to_encrypt);
         AES_ECB_encrypt(&ctx, data_to_encrypt + 16);
+        log_hex("DAO encrypted", encrypted_data, 32);
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
-        log_hex("ENCRYPT DAO", encrypted_data, 32);
-
-        flog(LOG_INFO, "encrypt dao_sec");
 }
 
 void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
@@ -780,6 +785,7 @@ void dag_build_dis(struct safe_buffer *sb)
 
 void encrypt_dis(struct nd_rpl_dis *dis, struct nd_rpl_padn *padn, struct nd_rpl_padn *padn1, struct nd_rpl_padn *padn_, uint8_t *encrypted_data)
 {
+        flog(LOG_INFO, "encrypt_dis");
         uint8_t data_to_encrypt[16];
         memcpy(data_to_encrypt, dis, 2);
         memcpy(data_to_encrypt + 2, padn->padding, padn->option_length);
@@ -788,14 +794,16 @@ void encrypt_dis(struct nd_rpl_dis *dis, struct nd_rpl_padn *padn, struct nd_rpl
 
         const uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
+        log_hex("encrypt_dis AES key", aes_key, 16);
 
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
+        log_hex("DIS to encrypt", data_to_encrypt, 16);
         AES_ECB_encrypt(&ctx, data_to_encrypt);
+        log_hex("DIS encrypted", data_to_encrypt, 16);
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
-        flog(LOG_INFO, "encrypt dis_sec");
 }
 
 void dag_build_dis_sec(struct safe_buffer *sb)
@@ -849,9 +857,6 @@ void dag_build_pk(struct safe_buffer *sb, struct iface *iface)
         // log_hex("Saved static Secret Key ", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
 
         safe_buffer_append(sb, &sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
-
-        // log_hex("Saved static Public Key after sb append", sender_keys.rpl_sec_pkey, CRYPTO_PUBLICKEYBYTES);
-        // log_hex("Saved static Secret Key after sb append", sender_keys.rpl_sec_skey, CRYPTO_SECRETKEYBYTES);
         flog(LOG_INFO, "pk built");
 }
 
@@ -862,10 +867,9 @@ void dag_build_ct(struct safe_buffer *sb, const u_int8_t pk[CRYPTO_PUBLICKEYBYTE
         dag_build_icmp(sb, ND_RPL_SEC_CT_EXCH);
 
         crypto_kem_enc(keys.rpl_sec_ckey, keys.rpl_sec_sskey, pk);
-        // log_hex("Cipher Text: ", keys.rpl_sec_ckey, CRYPTO_CIPHERTEXTBYTES);
         log_hex("Encapsulated Shared Secret: ", keys.rpl_sec_sskey, CRYPTO_BYTES);
 
-        memcpy(&keys.rpl_sec_sskey, shared_secret, CRYPTO_BYTES);
+        memcpy(shared_secret, &keys.rpl_sec_sskey, CRYPTO_BYTES);
 
         safe_buffer_append(sb, &keys.rpl_sec_ckey, CRYPTO_CIPHERTEXTBYTES);
 }
