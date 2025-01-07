@@ -36,7 +36,6 @@ void dagid_to_hex(const uint8_t *rpl_dagid, char *dagid_hex)
 		sprintf(&dagid_hex[i * 2], "%02x", rpl_dagid[i]);
 	}
 	dagid_hex[32] = '\0';
-	//     flog(LOG_INFO, "DODAGID em hexadecimal: %s", dagid_hex);
 }
 
 uint8_t *decrypt_dodagid(const char *dagid_hex)
@@ -63,11 +62,6 @@ uint8_t *decrypt_dodagid(const char *dagid_hex)
 
 	flog(LOG_INFO, "Descriptografia do DODAGID concluída");
 
-	/*flog(LOG_INFO, "DODAGID descriptografado: ");
-	for (int i = 0; i < 16; i++) {
-		flog(LOG_INFO, "%02x", decrypted_data[i]);
-	}*/
-
 	return decrypted_data;
 }
 
@@ -93,14 +87,8 @@ static void process_dio(int sock, struct iface *iface, const void *msg,
 
 	char dagid_hex[33];
 	dagid_to_hex((uint8_t *)dio->rpl_dagid.s6_addr, dagid_hex);
-	// flog(LOG_INFO, "Consulta do DODAGID no process.c %s", dagid_hex);
 
 	uint8_t *decrypted_dagid = decrypt_dodagid(dagid_hex);
-
-	/*flog(LOG_INFO, "DODAGID após descriptografia no process.c ");
-	  for (int i = 0; i < 16; i++) {
-	 flog(LOG_INFO, "%02x", decrypted_dagid[i]);
-	}*/
 
 	memcpy(dio->rpl_dagid.s6_addr, decrypted_dagid, 16);
 
@@ -427,12 +415,12 @@ void decrypt_dao_sec(void *msg, uint8_t *decrypted_data)
 }
 
 static void process_dao_sec(int sock, struct iface *iface, const void *msg,
-			size_t len, struct sockaddr_in6 *addr)
+							size_t len, struct sockaddr_in6 *addr)
 {
 	const struct nd_rpl_security *dao_sec = (const struct nd_rpl_security *)msg;
 	const struct nd_rpl_dao *dao = (const struct nd_rpl_dao *)(msg + sizeof(struct nd_rpl_security) + 1);
 	const struct rpl_dao_target *target;
-	//const struct nd_rpl_dao *dao = msg;
+	// const struct nd_rpl_dao *dao = msg;
 	char addr_str[INET6_ADDRSTRLEN];
 	const struct nd_rpl_opt *opt;
 	const unsigned char *p;
@@ -449,7 +437,7 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	decrypt_dao_sec(msg, decrypted_dao);
 
 	memcpy(msg + 9, decrypted_dao, 1);
-    memcpy(msg + 11, decrypted_dao + 1, 2);
+	memcpy(msg + 11, decrypted_dao + 1, 2);
 	memcpy(msg + 51, decrypted_dao + 3, 5);
 	memcpy(msg + 58, decrypted_dao + 8, 5);
 	memcpy(msg + 65, decrypted_dao + 13, 3);
@@ -457,7 +445,8 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 
 	log_hex("msg information after decryption", msg, len);
 
-	if (len < sizeof(*dao)) {
+	if (len < sizeof(*dao))
+	{
 		flog(LOG_INFO, "dao length mismatch, drop");
 		return;
 	}
@@ -467,8 +456,9 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	flog(LOG_INFO, "received dao_sec %s", addr_str);
 
 	dag = dag_lookup(iface, dao->rpl_instanceid,
-			 &dao->rpl_dagid);
-	if (!dag) {
+					 &dao->rpl_dagid);
+	if (!dag)
+	{
 		addrtostr(&dao->rpl_dagid, addr_str, sizeof(addr_str));
 		flog(LOG_INFO, "can't find dag sec %s", addr_str);
 		return;
@@ -478,19 +468,23 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	p += sizeof(*dao);
 	optlen = len;
 	flog(LOG_INFO, "dao optlen %d", optlen);
-	while (optlen > 0) {
+	while (optlen > 0)
+	{
 		opt = (const struct nd_rpl_opt *)p;
 
-		if (optlen < sizeof(*opt)) {
+		if (optlen < sizeof(*opt))
+		{
 			flog(LOG_INFO, "rpl opt length mismatch, drop");
 			return;
 		}
 
 		flog(LOG_INFO, "dao opt %d", opt->type);
-		switch (opt->type) {
+		switch (opt->type)
+		{
 		case RPL_DAO_RPLTARGET:
 			target = (const struct rpl_dao_target *)p;
-			if (optlen < sizeof(*opt)) {
+			if (optlen < sizeof(*opt))
+			{
 				flog(LOG_INFO, "rpl target length mismatch, drop");
 				return;
 			}
@@ -498,8 +492,8 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 			addrtostr(&target->rpl_dao_prefix, addr_str, sizeof(addr_str));
 			flog(LOG_INFO, "dao_sec target %s", addr_str);
 			dag_lookup_child_or_create(dag,
-						   &target->rpl_dao_prefix,
-						   &addr->sin6_addr);
+									   &target->rpl_dao_prefix,
+									   &addr->sin6_addr);
 			break;
 		default:
 			/* IGNORE NOT SUPPORTED */
@@ -512,11 +506,12 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 		flog(LOG_INFO, "dao optlen %d", optlen);
 	}
 
-	DL_FOREACH(dag->childs.head, c) {
+	DL_FOREACH(dag->childs.head, c)
+	{
 		child = container_of(c, struct child, list);
 
 		rc = nl_add_route_via(dag->iface->ifindex, &child->addr,
-				      &child->from);
+							  &child->from);
 		flog(LOG_INFO, "via route %d %s", rc, strerror(errno));
 	}
 
@@ -615,7 +610,7 @@ static void process_daoack_sec(int sock, struct iface *iface, const void *msg,
 	log_hex("msg information before decryption", msg, len);
 
 	memcpy(msg + 9, decrypted_daoack, 1);
-    memcpy(msg + 11, decrypted_daoack + 1, 2);
+	memcpy(msg + 11, decrypted_daoack + 1, 2);
 	memcpy(msg + 31, decrypted_daoack + 3, 5);
 	memcpy(msg + 38, decrypted_daoack + 8, 5);
 	memcpy(msg + 45, decrypted_daoack + 13, 3);
@@ -743,31 +738,32 @@ static void process_dis_sec(int sock, struct iface *iface, void *msg,
  */
 static void process_pk_sec_exch(int sock, struct iface *iface, const void *msg)
 {
-	if (iface->dodag_root){
-	u_int8_t *rec_pk;
+	if (iface->dodag_root)
+	{
+		u_int8_t *rec_pk;
 
-	if (iface->enc_mode == ENC_MODE_RSA)
-	{
-		rec_pk = mzalloc(RSA_KEY_SIZE_BYTES);
-		if (!rec_pk)
+		if (iface->enc_mode == ENC_MODE_RSA)
 		{
-			flog(LOG_ERR, "failed to allocate memory for public key");
-			return;
+			rec_pk = mzalloc(RSA_KEY_SIZE_BYTES);
+			if (!rec_pk)
+			{
+				flog(LOG_ERR, "failed to allocate memory for public key");
+				return;
+			}
+			memcpy(rec_pk, msg, RSA_KEY_SIZE_BYTES);
+			send_ct(sock, iface, rec_pk);
 		}
-		memcpy(rec_pk, msg, RSA_KEY_SIZE_BYTES);
-		send_ct(sock, iface, rec_pk);
-	}
-	else if (iface->enc_mode == ENC_MODE_KYBER)
-	{
-		rec_pk = mzalloc(CRYPTO_PUBLICKEYBYTES);
-		if (!rec_pk)
+		else if (iface->enc_mode == ENC_MODE_KYBER)
 		{
-			flog(LOG_ERR, "failed to allocate memory for public key");
-			return;
+			rec_pk = mzalloc(CRYPTO_PUBLICKEYBYTES);
+			if (!rec_pk)
+			{
+				flog(LOG_ERR, "failed to allocate memory for public key");
+				return;
+			}
+			memcpy(rec_pk, msg, CRYPTO_PUBLICKEYBYTES);
+			send_ct(sock, iface, rec_pk);
 		}
-		memcpy(rec_pk, msg, CRYPTO_PUBLICKEYBYTES);
-		send_ct(sock, iface, rec_pk);
-	}
 	}
 }
 
@@ -814,7 +810,7 @@ static void process_ct_sec_exch(const void *msg, struct iface *iface)
 
 void process_exchange(int sock, const struct list_head *ifaces, unsigned char *msg,
 					  int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
-					  int hoplimit, struct ev_loop *loop, ev_io *w)
+					  int hoplimit, struct ev_loop *loop, ev_io *w, int* in_exchange)
 {
 	flog(LOG_INFO, "process exchange");
 	char addr_str[INET6_ADDRSTRLEN];
@@ -867,16 +863,16 @@ void process_exchange(int sock, const struct list_head *ifaces, unsigned char *m
 	switch (icmph->icmp6_code)
 	{
 	case ND_RPL_SEC_PK_EXCH:
-		flog(LOG_INFO, "Received ICMPv6 pk_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
-			 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
 		process_pk_sec_exch(sock, iface, &icmph->icmp6_dataun);
+		flog(LOG_INFO, "ND_RPL_SEC_PK_EXCH changing in_exchange to 0");
+		*in_exchange = 0;
 		ev_io_stop(loop, w);
 		ev_break(loop, EVBREAK_ONE);
 		break;
 	case ND_RPL_SEC_CT_EXCH:
-		flog(LOG_INFO, "Received ICMPv6 ct_sec_exch from address: %s; ICMPv6 type: %u; code: %u; checksum: %X",
-			 addr_str, icmph->icmp6_type, icmph->icmp6_code, icmph->icmp6_cksum);
 		process_ct_sec_exch(&icmph->icmp6_dataun, iface);
+		flog(LOG_INFO, "ND_RPL_SEC_CT_EXCH changing in_exchange to 0");
+		*in_exchange = 0;
 		ev_io_stop(loop, w);
 		ev_break(loop, EVBREAK_ONE);
 		break;
@@ -963,6 +959,12 @@ void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 		break;
 	case ND_RPL_SEC_DAG_ACK:
 		process_daoack_sec(sock, iface, &icmph->icmp6_dataun, len, addr);
+		break;
+	case ND_RPL_SEC_PK_EXCH:
+		process_pk_sec_exch(sock, iface, &icmph->icmp6_dataun);
+		break;
+	case ND_RPL_SEC_CT_EXCH:
+		process_ct_sec_exch(&icmph->icmp6_dataun, iface);
 		break;
 	default:
 		flog(LOG_ERR, "%s received unsupported RPL code 0x%02x",

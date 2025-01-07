@@ -23,7 +23,7 @@
 
 void process_exchange(int sock, const struct list_head *ifaces, unsigned char *msg,
 					  int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
-					  int hoplimit, struct ev_loop *loop, ev_io *w);
+					  int hoplimit, struct ev_loop *loop, ev_io *w, int* in_exchange);
 void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 			 int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
 			 int hoplimit);

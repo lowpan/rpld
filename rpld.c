@@ -38,6 +38,10 @@ static int sock;
 static ev_async icmpv6_async;
 static ev_io sock_watcher;
 
+ev_timer exchange_timer;
+static ev_io sock_exchange;
+int in_exchange = 0;
+
 /* TODO overwrite root setting */
 static char usage_str[] = {
 	"\n"
@@ -81,15 +85,12 @@ static void icmpv6_cb(EV_P_ ev_io *w, int revents)
 static void icmpv6_async_cb(EV_P_ ev_async *w, int revents)
 {
 	flog(LOG_INFO, "icmpv6_async_cb");
-	// ev_io sock_watcher;
 
 	// Reinitialize the socket watcher for ICMPv6 handling
 	ev_io_init(&sock_watcher, icmpv6_cb, sock, EV_READ);
 	ev_io_start(loop, &sock_watcher);
 
 	ev_run(loop, 0);
-
-	// ev_io_start(loop, &sock_watcher);
 }
 
 static void key_exchange_cb(EV_P_ ev_io *w, int revents)
@@ -104,7 +105,7 @@ static void key_exchange_cb(EV_P_ ev_io *w, int revents)
 	len = recv_rs_ra(sock, msg, &rcv_addr, &pkt_info, &hoplimit, chdr);
 	if (len > 0 && pkt_info)
 	{
-		process_exchange(sock, &ifaces, msg, len, &rcv_addr, pkt_info, hoplimit, loop, w);
+		process_exchange(sock, &ifaces, msg, len, &rcv_addr, pkt_info, hoplimit, loop, w, &in_exchange);
 	}
 	else if (!pkt_info)
 	{
@@ -115,14 +116,6 @@ static void key_exchange_cb(EV_P_ ev_io *w, int revents)
 		dlog(LOG_INFO, 4, "recv_rs_ra returned len <= 0: %d", len);
 	}
 }
-
-/*static void trickle_cb(EV_P_ ev_timer *w, int revents)
-{
-	struct dag *dag = container_of(w, struct dag, trickle_w);
-
-	flog(LOG_INFO, "send dio %p", dag->parent);
-	send_dio(sock, dag);
-}*/
 
 static void trickle_cb_sec(EV_P_ ev_timer *w, int revents)
 {
@@ -137,6 +130,16 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
 	ev_break(loop, EVBREAK_ALL);
 }
 
+static void break_exchange_cb(EV_P_ ev_timer *w, int revents)
+{
+	ev_timer_stop(loop, w);
+	if (in_exchange == 1)
+	{
+		// 	ev_io_stop(loop, &sock_exchange);
+		ev_break(loop, EVBREAK_ONE);
+	}
+}
+
 /**
  * @brief This function is called when the dis_w timer expires.
  * If an encryption is set, it performs the key exchange
@@ -145,57 +148,33 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
  * @param w
  * @param revents
  */
-// static void send_dis_cb(EV_P_ ev_timer *w, int revents)
-// {
-// 	flog(LOG_INFO, "send_dis_cb");
-// 	struct iface *iface = container_of(w, struct iface, dis_w);
-// 	flog(LOG_INFO, "iface %s", iface->ifname);
-
-// 	ev_timer_stop(loop, w);
-
-// 	if (!iface->enc_mode == ENC_MODE_NONE)
-// 	{
-// 		send_pk(sock, iface);
-// 		ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
-// 		ev_io_start(loop, &sock_watcher);
-
-// 		ev_run(loop, 0);
-// 	}
-
-// 	send_dis(sock, iface);
-// 	ev_async_send(loop, &icmpv6_async);
-// }
-
 static void send_dis_sec_cb(EV_P_ ev_timer *w, int revents)
 {
 	struct iface *iface = container_of(w, struct iface, dis_w);
 
 	ev_timer_stop(loop, w);
-	if (!iface->dodag_root)
-	send_pk(sock, iface);
 
-	ev_io_init(&sock_watcher, key_exchange_cb, sock, EV_READ);
-	ev_io_start(loop, &sock_watcher);
+	if (!iface->enc_mode == ENC_MODE_NONE)
+	{
+		in_exchange = 1;
 
-	ev_run(loop, 0);
+		ev_timer_init(&exchange_timer, break_exchange_cb, 4., 0.);
+		ev_timer_start(loop, &exchange_timer);
+
+		send_pk(sock, iface);
+
+		ev_io_init(&sock_exchange, key_exchange_cb, sock, EV_READ);
+		ev_io_start(loop, &sock_exchange);
+
+		ev_run(loop, 0);
+	}
 
 	flog(LOG_INFO, "really sending dis");
 	send_dis_sec(sock, iface);
 	ev_async_send(loop, &icmpv6_async);
-
-	// send_dis_sec(sock, iface);
-	// ev_async_send(loop, &icmpv6_async);
 }
 
 /* TODO move somewhere else */
-/*struct ev_loop *foo;
-void dag_init_timer(struct dag *dag)
-{
-	ev_timer_init(&dag->trickle_w, trickle_cb,
-				  dag->trickle_t, dag->trickle_t);
-	ev_timer_start(foo, &dag->trickle_w);
-}*/
-
 struct ev_loop *foo;
 void dag_init_timer(struct dag *dag)
 {
