@@ -378,14 +378,14 @@ void dag_build_dio(struct dag *dag, struct safe_buffer *sb)
         dio.rpl_mopprf = ND_RPL_DIO_GROUNDED | RPL_DIO_STORING_NO_MULTICAST << 3;
         dio.rpl_dagid = dag->dodagid;
 
-        dag_log_dodagid(dag);
+        // dag_log_dodagid(dag);
 
-        char dodagid_hex[33];
-        dodagid_to_hex(dag, dodagid_hex);
+        // char dodagid_hex[33];
+        // dodagid_to_hex(dag, dodagid_hex);
 
-        uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
+        // uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
 
-        memcpy(dio.rpl_dagid.s6_addr, encrypted_dodagid, 16);
+        // memcpy(dio.rpl_dagid.s6_addr, encrypted_dodagid, 16);
 
         safe_buffer_append(sb, &dio, sizeof(dio));
         append_destprefix(dag, sb);
@@ -433,10 +433,10 @@ void encrypt_dio(struct nd_rpl_dio *dio, struct nd_rpl_padn *padn, struct nd_rpl
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
-        log_hex("DIO to encrypt", data_to_encrypt, 32);
+        // log_hex("DIO to encrypt", data_to_encrypt, 32);
         AES_ECB_encrypt(&ctx, data_to_encrypt);
         AES_ECB_encrypt(&ctx, data_to_encrypt + 16);
-        log_hex("DIO encrypted", data_to_encrypt, 32);
+        // log_hex("DIO encrypted", data_to_encrypt, 32);
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
 }
@@ -519,14 +519,14 @@ void dag_build_dao_ack(struct dag *dag, struct safe_buffer *sb)
         dao.rpl_daoseq = dag->dsn;
         dao.rpl_dagid = dag->dodagid;
 
-        dag_log_dodagid(dag);
+        // dag_log_dodagid(dag);
 
-        char dodagid_hex[33];
-        dodagid_to_hex(dag, dodagid_hex);
+        // char dodagid_hex[33];
+        // dodagid_to_hex(dag, dodagid_hex);
 
-        uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
+        // uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
 
-        memcpy(dao.rpl_dagid.s6_addr, encrypted_dodagid, 16);
+        // memcpy(dao.rpl_dagid.s6_addr, encrypted_dodagid, 16);
 
         safe_buffer_append(sb, &dao, sizeof(dao));
         flog(LOG_INFO, "build dao");
@@ -551,10 +551,10 @@ void encrypt_daoack_sec(struct nd_rpl_daoack *dao, struct nd_rpl_padn *padn, str
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
-        log_hex("DAO ACK to encrypt", data_to_encrypt, 32);
+        // log_hex("DAO ACK to encrypt", data_to_encrypt, 32);
         AES_ECB_encrypt(&ctx, data_to_encrypt);
         AES_ECB_encrypt(&ctx, data_to_encrypt + 16);
-        log_hex("DAO ACK encrypted", data_to_encrypt, 32);
+        // log_hex("DAO ACK encrypted", data_to_encrypt, 32);
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
 }
@@ -601,11 +601,11 @@ void dag_build_dao_ack_sec(struct dag *dag, struct safe_buffer *sb)
         memcpy(padn_.padding, encrypted_daoack + 3 + padn.option_length + padn1.option_length, padn_.option_length);
         memcpy(dao.rpl_dagid.s6_addr, encrypted_daoack + 3 + padn.option_length + padn1.option_length + padn_.option_length, 16);
 
-        log_hex("InstanceID_ACK", (uint8_t*)&dao.rpl_instanceid, 1);
-        log_hex("daoseq_ACK", (uint8_t*)&dao.rpl_daoseq, 1);
-        log_hex("status_ACK", (uint8_t*)&dao.rpl_status, 1);
+        // log_hex("InstanceID_ACK", (uint8_t*)&dao.rpl_instanceid, 1);
+        // log_hex("daoseq_ACK", (uint8_t*)&dao.rpl_daoseq, 1);
+        // log_hex("status_ACK", (uint8_t*)&dao.rpl_status, 1);
 
-        log_hex("DAOACK Data", (uint8_t*)&dao, sizeof(dao));
+        // log_hex("DAOACK Data", (uint8_t*)&dao, sizeof(dao));
 
         safe_buffer_append(sb, &dao_sec, sizeof(dao_sec) + 1);
         safe_buffer_append(sb, &dao, sizeof(dao));
@@ -648,21 +648,12 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb)
         daoack.rpl_flags |= RPL_DAO_D_MASK;
         daoack.rpl_dagid = dag->dodagid;
 
-        // dag_log_dodagid(dag);
+        // char dodagid_hex[33];
+        // dodagid_to_hex(dag, dodagid_hex);
 
-        char dodagid_hex[33];
-        dodagid_to_hex(dag, dodagid_hex);
+        // uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
 
-        // flog(LOG_INFO, "DODAGID em dag_build_dao antes da criptografia %s", dodagid_hex);
-
-        uint8_t *encrypted_dodagid = dag_encrypt_dodagid(dodagid_hex);
-
-        /* flog(LOG_INFO, "DODAGID em dag_build_dao após criptografia ");
-        for (int i = 0; i < 16; i++) {
-            flog(LOG_INFO, "%02x", encrypted_dodagid[i]);
-        }*/
-
-        memcpy(daoack.rpl_dagid.s6_addr, encrypted_dodagid, 16);
+        // memcpy(daoack.rpl_dagid.s6_addr, encrypted_dodagid, 16);
 
         safe_buffer_append(sb, &daoack, sizeof(daoack));
         prefix.prefix = dag->self;
@@ -702,12 +693,12 @@ void encrypt_dao(struct nd_rpl_dao *dao, struct nd_rpl_padn *padn, struct nd_rpl
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
-        log_hex("DAO to encrypt", data_to_encrypt, 32);
+        // log_hex("DAO to encrypt", data_to_encrypt, 32);
         AES_ECB_encrypt(&ctx, data_to_encrypt);
         AES_ECB_encrypt(&ctx, data_to_encrypt + 16);
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
-        log_hex("DAO encrypted", encrypted_data, 32);
+        // log_hex("DAO encrypted", encrypted_data, 32);
 }
 
 void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
@@ -744,7 +735,7 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
 
         uint8_t encrypted_dao[32];
         encrypt_dao(&dao, &padn, &padn1, &padn_, encrypted_dao);
-        log_hex("encrypted_dao no build_dao", encrypted_dao, 32);
+        // log_hex("encrypted_dao no build_dao", encrypted_dao, 32);
 
         memcpy(&dao.rpl_instanceid, encrypted_dao, 1); 
         memcpy(&dao.rpl_resv, encrypted_dao + 1, 1);    
@@ -754,11 +745,11 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
         memcpy(padn_.padding, encrypted_dao + 3 + padn.option_length + padn1.option_length, padn_.option_length);
         memcpy(dao.rpl_dagid.s6_addr, encrypted_dao + 3 + padn.option_length + padn1.option_length + padn_.option_length, 16);
 
-        log_hex("InstanceID", (uint8_t*)&dao.rpl_instanceid, 1);
-        log_hex("Resv", (uint8_t*)&dao.rpl_resv, 1);
-        log_hex("DaoSeq", (uint8_t*)&dao.rpl_daoseq, 1);
+        // log_hex("InstanceID", (uint8_t*)&dao.rpl_instanceid, 1);
+        // log_hex("Resv", (uint8_t*)&dao.rpl_resv, 1);
+        // log_hex("DaoSeq", (uint8_t*)&dao.rpl_daoseq, 1);
 
-        log_hex("DAO Data", (uint8_t*)&dao, sizeof(dao));
+        // log_hex("DAO Data", (uint8_t*)&dao, sizeof(dao));
 
         safe_buffer_append(sb, &dao_sec, sizeof(dao_sec) + 1);
         safe_buffer_append(sb, &dao, sizeof(dao));
@@ -811,9 +802,9 @@ void encrypt_dis(struct nd_rpl_dis *dis, struct nd_rpl_padn *padn, struct nd_rpl
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
-        log_hex("DIS to encrypt", data_to_encrypt, 16);
+        // log_hex("DIS to encrypt", data_to_encrypt, 16);
         AES_ECB_encrypt(&ctx, data_to_encrypt);
-        log_hex("DIS encrypted", data_to_encrypt, 16);
+        // log_hex("DIS encrypted", data_to_encrypt, 16);
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
 }

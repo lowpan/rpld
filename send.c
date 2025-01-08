@@ -88,7 +88,10 @@ void send_dio(int sock, struct dag *dag)
 
 	dag_build_dio(dag, sb);
 	rc = really_send(sock, dag->iface, &all_rpl_addr, sb);
-	flog(LOG_INFO, "foo! %s %d %s", dag->iface->ifname, rc, strerror(errno));
+	
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&all_rpl_addr.in6_u, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent Dio to: %s", addr_str);
 }
 
 void send_dio_sec(int sock, struct dag *dag)
@@ -102,7 +105,10 @@ void send_dio_sec(int sock, struct dag *dag)
 
 	dag_build_dio_sec(dag, sb);
 	rc = really_send(sock, dag->iface, &all_rpl_addr, sb);
-	flog(LOG_INFO, "foo! %s %d %s", dag->iface->ifname, rc, strerror(errno));
+	
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&all_rpl_addr.in6_u, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent Sec Dio to: %s", addr_str);
 }
 
 void send_dao(int sock, const struct in6_addr *to, struct dag *dag)
@@ -116,7 +122,10 @@ void send_dao(int sock, const struct in6_addr *to, struct dag *dag)
 
 	dag_build_dao(dag, sb);
 	rc = really_send(sock, dag->iface, to, sb);
-	flog(LOG_INFO, "send_dao! %d", rc);
+	
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(to, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent Dao to: %s", addr_str);
 }
 
 void send_dao_sec(int sock, const struct in6_addr *to, struct dag *dag)
@@ -130,7 +139,10 @@ void send_dao_sec(int sock, const struct in6_addr *to, struct dag *dag)
 
 	dag_build_dao_sec(dag, sb);
 	rc = really_send(sock, dag->iface, to, sb);
-	flog(LOG_INFO, "send_dao_sec! %d", rc);
+	
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(to, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent Sec Dao to: %s", addr_str);
 }
 
 void send_dao_ack(int sock, const struct in6_addr *to, struct dag *dag)
@@ -144,7 +156,10 @@ void send_dao_ack(int sock, const struct in6_addr *to, struct dag *dag)
 
 	dag_build_dao_ack(dag, sb);
 	rc = really_send(sock, dag->iface, to, sb);
-	flog(LOG_INFO, "send_dao_ack! %d", rc);
+	
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(to, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent Dao Ack to: %s", addr_str);
 }
 
 void send_dao_ack_sec(int sock, const struct in6_addr *to, struct dag *dag)
@@ -158,7 +173,10 @@ void send_dao_ack_sec(int sock, const struct in6_addr *to, struct dag *dag)
 
 	dag_build_dao_ack_sec(dag, sb);
 	rc = really_send(sock, dag->iface, to, sb);
-	flog(LOG_INFO, "send_dao_ack_sec! %d", rc);
+	
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(to, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent Sec Dao Ack to: %s", addr_str);
 }
 
 void send_dis(int sock, struct iface *iface)
@@ -172,7 +190,10 @@ void send_dis(int sock, struct iface *iface)
 
 	dag_build_dis(sb);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
-	flog(LOG_INFO, "send_dis! %d", rc);
+
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&all_rpl_addr.in6_u, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent Dis to: %s", addr_str);
 }
 
 void send_dis_sec(int sock, struct iface *iface)
@@ -186,12 +207,14 @@ void send_dis_sec(int sock, struct iface *iface)
 
 	dag_build_dis_sec(sb);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
-	flog(LOG_INFO, "send_dis_sec! %d", rc);
+
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&all_rpl_addr.in6_u, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent Sec Dis to: %s", addr_str);
 }
 
 void send_pk(int sock, struct iface *iface)
 {
-	flog(LOG_INFO, "Sending PK in iface: %s", iface->ifname);
 	struct safe_buffer *sb;
 	int rc;
 
@@ -201,12 +224,13 @@ void send_pk(int sock, struct iface *iface)
 
 	dag_build_pk(sb, iface);
 	rc = really_send(sock, iface, &all_rpl_addr, sb);
-	flog(LOG_INFO, "really sent pk! %d", rc);
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&all_rpl_addr.in6_u, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent PK to: %s", addr_str);
 }
 
-void send_ct(int sock, struct iface *iface, u_int8_t *rec_pk)
+void send_ct(int sock, const struct in6_addr *to, struct iface *iface, u_int8_t *rec_pk)
 {
-	flog(LOG_INFO, "Sending CT in iface: %s", iface->ifname);
 	struct safe_buffer *sb;
 	int rc;
 
@@ -215,6 +239,9 @@ void send_ct(int sock, struct iface *iface, u_int8_t *rec_pk)
 		return;
 
 	dag_build_ct(sb, rec_pk, iface->enc_mode);
-	rc = really_send(sock, iface, &all_rpl_addr, sb);
-	flog(LOG_INFO, "send_ct! %d", rc);
+	rc = really_send(sock, iface, to, sb);
+
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(to, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Sent CT to: %s", addr_str);
 }

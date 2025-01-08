@@ -121,8 +121,11 @@ static void trickle_cb_sec(EV_P_ ev_timer *w, int revents)
 {
 	struct dag *dag = container_of(w, struct dag, trickle_w);
 
-	flog(LOG_INFO, "send dio_sec %p", dag->parent);
-	send_dio_sec(sock, dag);
+	flog(LOG_INFO, "trickle_cb_sec. enc_mode: %d", dag->iface->enc_mode);
+	if (dag->iface->enc_mode == ENC_MODE_NONE)
+		send_dio(sock, dag);
+	else
+		send_dio_sec(sock, dag);
 }
 
 static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
@@ -167,10 +170,11 @@ static void send_dis_sec_cb(EV_P_ ev_timer *w, int revents)
 		ev_io_start(loop, &sock_exchange);
 
 		ev_run(loop, 0);
+		send_dis_sec(sock, iface);
+	} else {
+		send_dis(sock, iface);
 	}
 
-	flog(LOG_INFO, "really sending dis");
-	send_dis_sec(sock, iface);
 	ev_async_send(loop, &icmpv6_async);
 }
 
