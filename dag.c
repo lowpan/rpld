@@ -29,6 +29,7 @@
 #include "crypto/aes/tiny-AES-c-master/aes.h"
 
 #include "crypto/kyber/ref/kem.h"
+#include "crypto/kyber/ref/indcpa.h"
 
 u_int8_t shared_secret[CRYPTO_BYTES];
 
@@ -428,7 +429,7 @@ void encrypt_dio(struct nd_rpl_dio *dio, struct nd_rpl_padn *padn, struct nd_rpl
 
         const uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
-        log_hex("encrypt_dio AES key", aes_key, 16);
+        // log_hex("encrypt_dio AES key", aes_key, 16);
 
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
@@ -546,7 +547,7 @@ void encrypt_daoack_sec(struct nd_rpl_daoack *dao, struct nd_rpl_padn *padn, str
 
         const uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
-        log_hex("encrypt_daoack_sec AES key", aes_key, 16);
+        // log_hex("encrypt_daoack_sec AES key", aes_key, 16);
 
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
@@ -688,7 +689,7 @@ void encrypt_dao(struct nd_rpl_dao *dao, struct nd_rpl_padn *padn, struct nd_rpl
 
         const uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
-        log_hex("encrypt_dao AES key", aes_key, 16);
+        // log_hex("encrypt_dao AES key", aes_key, 16);
 
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
@@ -797,7 +798,7 @@ void encrypt_dis(struct nd_rpl_dis *dis, struct nd_rpl_padn *padn, struct nd_rpl
 
         const uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
-        log_hex("encrypt_dis AES key", aes_key, 16);
+        // log_hex("encrypt_dis AES key", aes_key, 16);
 
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
@@ -874,25 +875,31 @@ void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, int mode)
 {
         dag_build_icmp(sb, ND_RPL_SEC_CT_EXCH);
 
+        // Shared Secret with 32 bytes in hexadecimal: 89E9D140FD7371107BBEBCF61E4390C56B8933145F864B02387D3FD2D9982202
+        // Shared Secret with 16 bytes in hexadecimal: 89E9D140FD7371107BBEBCF61E4390C5
+        const char *ss = "89E9D140FD7371107BBEBCF61E4390C5";
         if (mode == ENC_MODE_RSA)
         {
-                // Shared Secret with 32 bytes in hexadecimal: 89E9D140FD7371107BBEBCF61E4390C56B8933145F864B02387D3FD2D9982202
-                // Shared Secret with 16 bytes in hexadecimal: 89E9D140FD7371107BBEBCF61E4390C5
-                const char *ss = "89E9D140FD7371107BBEBCF61E4390C5";
                 memcpy(shared_secret, ss, RSA_SS_SIZE_BYTES);
-                // log_hex("Encapsulated Shared Secret: ", (const u_int8_t *)ss, RSA_SS_SIZE_BYTES);
 
                 struct key_class rec_pk_class;
                 uint8_to_key_class(rec_pk, &rec_pk_class);
                 const long long *encrypted_ss = rsa_encrypt(ss, RSA_SS_SIZE_BYTES, &rec_pk_class);
 
+                log_hex("Encapsulated Shared Secret: ", shared_secret, RSA_SS_SIZE_BYTES);
                 safe_buffer_append(sb, encrypted_ss, RSA_CIPHERTEXT_SIZE_BYTES);
         }
         else if (mode == ENC_MODE_KYBER)
         {
-                u_int8_t cipher_text[CRYPTO_CIPHERTEXTBYTES];
-                crypto_kem_enc(cipher_text, shared_secret, rec_pk);
-                // log_hex("Encapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
-                safe_buffer_append(sb, cipher_text, CRYPTO_CIPHERTEXTBYTES);
+                memcpy(shared_secret, ss, KYBER_SSBYTES);
+
+                u_int8_t cipher_text[KYBER_CIPHERTEXTBYTES];
+                uint8_t coins[KYBER_SYMBYTES];
+                randombytes(coins, KYBER_SYMBYTES);
+                indcpa_enc(cipher_text, shared_secret, rec_pk, coins);
+                
+                // crypto_kem_enc(cipher_text, shared_secret, rec_pk);
+                log_hex("Encapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
+                safe_buffer_append(sb, cipher_text, KYBER_CIPHERTEXTBYTES);
         }
 }
