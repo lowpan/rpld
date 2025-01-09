@@ -545,9 +545,9 @@ void encrypt_daoack_sec(struct nd_rpl_daoack *dao, struct nd_rpl_padn **padns, u
 {
         flog(LOG_INFO, "encrypt_daoack_sec");
         uint8_t data_to_encrypt[32];
-        memcpy(data_to_encrypt, &dao->rpl_instanceid, 1);  
-        memcpy(data_to_encrypt + 1, &dao->rpl_daoseq, 1);   
-        memcpy(data_to_encrypt + 2, &dao->rpl_status, 1); 
+        memcpy(data_to_encrypt, &dao->rpl_instanceid, sizeof(dao->rpl_instanceid));  
+        memcpy(data_to_encrypt + 1, &dao->rpl_daoseq, sizeof(dao->rpl_daoseq));   
+        memcpy(data_to_encrypt + 2, &dao->rpl_status, sizeof(dao->rpl_status)); 
 
         size_t offset = 3;
         for (size_t i = 0; i < num_padns; i++) {
@@ -595,9 +595,9 @@ void dag_build_dao_ack_sec(struct dag *dag, struct safe_buffer *sb)
         uint8_t encrypted_daoack[32];
         encrypt_daoack_sec(&dao, padns, num_padns, encrypted_daoack);
 
-        memcpy(&dao.rpl_instanceid, encrypted_daoack, 1); 
-        memcpy(&dao.rpl_daoseq, encrypted_daoack + 1, 1);
-        memcpy(&dao.rpl_status, encrypted_daoack + 2, 1);
+        memcpy(&dao.rpl_instanceid, encrypted_daoack, sizeof(dao.rpl_instanceid)); 
+        memcpy(&dao.rpl_daoseq, encrypted_daoack + 1, sizeof(dao.rpl_daoseq));
+        memcpy(&dao.rpl_status, encrypted_daoack + 2, sizeof(dao.rpl_status));
         
         for (size_t i = 0; i < num_padns; i++) {
             memcpy(padns[i]->padding, encrypted_daoack + offset, padns[i]->option_length);
@@ -678,9 +678,9 @@ void encrypt_dao(struct nd_rpl_dao *dao, struct nd_rpl_padn **padns, uint8_t num
         flog(LOG_INFO, "encrypt_dao");
         uint8_t data_to_encrypt[32];
         size_t offset = 3;
-        memcpy(data_to_encrypt, &dao->rpl_instanceid, 1);  
-        memcpy(data_to_encrypt + 1, &dao->rpl_resv, 1);   
-        memcpy(data_to_encrypt + 2, &dao->rpl_daoseq, 1);
+        memcpy(data_to_encrypt, &dao->rpl_instanceid, sizeof(dao->rpl_instanceid));  
+        memcpy(data_to_encrypt + 1, &dao->rpl_resv, sizeof(dao->rpl_resv));   
+        memcpy(data_to_encrypt + 2, &dao->rpl_daoseq, sizeof(dao->rpl_daoseq));
         for (size_t i = 0; i < num_padns; i++) {
             memcpy(data_to_encrypt + offset, padns[i]->padding, padns[i]->option_length);
             offset += padns[i]->option_length;
@@ -755,9 +755,9 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
         uint8_t encrypted_dao[32];
         encrypt_dao(&dao, padns, num_padns, encrypted_dao);
 
-        memcpy(&dao.rpl_instanceid, encrypted_dao, 1); 
-        memcpy(&dao.rpl_resv, encrypted_dao + 1, 1);    
-        memcpy(&dao.rpl_daoseq, encrypted_dao + 2, 1);  
+        memcpy(&dao.rpl_instanceid, encrypted_dao, sizeof(dao.rpl_instanceid)); 
+        memcpy(&dao.rpl_resv, encrypted_dao + 1, sizeof(dao.rpl_resv));    
+        memcpy(&dao.rpl_daoseq, encrypted_dao + 2, sizeof(dao.rpl_daoseq));  
 
         size_t offset = 3;
         for (size_t i = 0; i < num_padns; i++) {
