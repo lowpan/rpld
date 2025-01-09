@@ -686,7 +686,6 @@ static void process_pk_sec_exch(int sock, struct iface *iface, const void *msg, 
 {
 	char addr_str[INET6_ADDRSTRLEN];	
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "Received public key from %s", addr_str);
 
 	u_int8_t *rec_pk;
 
@@ -732,11 +731,11 @@ static void process_ct_sec_exch(const void *msg, struct iface *iface)
 			flog(LOG_ERR, "failed to allocate memory for cipher text");
 			return;
 		}
+
 		memcpy(cipher_text, msg, RSA_CIPHERTEXT_SIZE_BYTES);
 		struct key_class sk_class;
 		uint8_to_key_class(iface->secret_key, &sk_class);
 		const char *dec_shared_secret = rsa_decrypt(cipher_text, RSA_CIPHERTEXT_SIZE_BYTES, &sk_class);
-		log_hex("Decapsulated Shared Secret: ", (const u_int8_t *)dec_shared_secret, RSA_SS_SIZE_BYTES);
 		memcpy(shared_secret, dec_shared_secret, RSA_SS_SIZE_BYTES);
 	}
 	else if (iface->enc_mode == ENC_MODE_KYBER)
@@ -750,12 +749,14 @@ static void process_ct_sec_exch(const void *msg, struct iface *iface)
 		}
 		memcpy(cipher_text, msg, KYBER_CIPHERTEXTBYTES);
 
-		// crypto_kem_dec(shared_secret, cipher_text, iface->secret_key);
 		indcpa_dec(shared_secret, cipher_text, iface->secret_key);
-		log_hex("Decapsulated Shared Secret: ", shared_secret, KYBER_SSBYTES);
 	}
 }
 
+/**
+ * @brief This function is called during the initial key exchange before the RPL process starts
+ * If it receives and sucessfully process a public key or cipher text packet, it stops the key exchange event loop
+ */
 void process_exchange(int sock, const struct list_head *ifaces, unsigned char *msg,
 					  int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
 					  int hoplimit, struct ev_loop *loop, ev_io *w, int* in_exchange)
@@ -855,6 +856,7 @@ void process_exchange(int sock, const struct list_head *ifaces, unsigned char *m
 	}
 }
 
+
 void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 			 int len, struct sockaddr_in6 *addr, struct in6_pktinfo *pkt_info,
 			 int hoplimit)
@@ -869,7 +871,7 @@ void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 	dlog(LOG_DEBUG, 4, "%s received a packet", if_name);
 
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "Packet addres: %s", addr_str);
+	flog(LOG_INFO, "Processing packet from addres: %s", addr_str);
 
 	if (!pkt_info)
 	{
@@ -899,10 +901,7 @@ void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 
 	if (icmph->icmp6_type != ND_RPL_MESSAGE)
 	{
-		/*
-		 *      We just want to listen to RPL
-		 */
-
+		/* We just want to listen to RPL */
 		flog(LOG_ERR, "%s icmpv6 filter failed", if_name);
 		return;
 	}
@@ -934,7 +933,6 @@ void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 		process_daoack_sec(sock, iface, &icmph->icmp6_dataun, len, addr);
 		break;
 	case ND_RPL_SEC_PK_EXCH:
-		flog(LOG_INFO, "Received PK from %s", addr_str);
 		struct list *r, *d;
 		struct rpl *rpl;
 		struct dag *dag;
@@ -944,7 +942,7 @@ void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 
 		addrtostr(&iface->ifaddr, iface_addr_str, sizeof(iface_addr_str));
 
-		flog(LOG_INFO, "Listing RPLs of iface %s", iface_addr_str);
+		/** Process a public key packet only if the node already has a dag */
 		DL_FOREACH(iface->rpls.head, r)
 		{
 			rpl = container_of(r, struct rpl, list);
@@ -952,17 +950,14 @@ void process(int sock, const struct list_head *ifaces, unsigned char *msg,
 			{
 				dag = container_of(d, struct dag, list);
 				addrtostr(&dag->self, dag_addr_str, sizeof(dag_addr_str));
-				flog(LOG_INFO, "Dag address: %s", dag_addr_str);
 
 				if (dag != NULL) {
-					flog(LOG_INFO, "AAAAAAAAAAAAAAAAAAAA");
 					process_pk_sec_exch(sock, iface, &icmph->icmp6_dataun, addr);
 				}
 			}
 		}
 		break;
 	case ND_RPL_SEC_CT_EXCH:
-		flog(LOG_INFO, "received CT from %s", addr_str);
 		process_ct_sec_exch(&icmph->icmp6_dataun, iface);
 		break;
 	default:

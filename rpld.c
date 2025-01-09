@@ -26,6 +26,8 @@
 #include "recv.h"
 #include "log.h"
 
+#include "crypto/kyber/ref/kem.h"
+
 #define VERSION "0.0.1"
 #define PATH_RPLD_LOG "/var/log/rpld.log"
 #define PATH_RPLD_CONF "/etc/rpld.conf"
@@ -121,7 +123,6 @@ static void trickle_cb_sec(EV_P_ ev_timer *w, int revents)
 {
 	struct dag *dag = container_of(w, struct dag, trickle_w);
 
-	flog(LOG_INFO, "trickle_cb_sec. enc_mode: %d", dag->iface->enc_mode);
 	if (dag->iface->enc_mode == ENC_MODE_NONE)
 		send_dio(sock, dag);
 	else
@@ -133,23 +134,22 @@ static void sigint_cb(struct ev_loop *loop, ev_signal *w, int revents)
 	ev_break(loop, EVBREAK_ALL);
 }
 
+/** 
+ * @brief This function is called when the exchange timer expires, stopping it if necessary
+ */
 static void break_exchange_cb(EV_P_ ev_timer *w, int revents)
 {
 	ev_timer_stop(loop, w);
 	if (in_exchange == 1)
 	{
-		// 	ev_io_stop(loop, &sock_exchange);
 		ev_break(loop, EVBREAK_ONE);
 	}
 }
 
 /**
  * @brief This function is called when the dis_w timer expires.
- * If an encryption is set, it performs the key exchange
- * After, it sends the dis message, and after the dis message, it starts the rpl process.
- *
- * @param w
- * @param revents
+ * If an encryption is set, it try to perform the initial key exchange
+ * After that, it sends the dis/sec_dis message, and then it sends a signal to start the rpl process.
  */
 static void send_dis_sec_cb(EV_P_ ev_timer *w, int revents)
 {
@@ -161,6 +161,7 @@ static void send_dis_sec_cb(EV_P_ ev_timer *w, int revents)
 	{
 		in_exchange = 1;
 
+		/** After 4 seconds waiting for a exchange response, break the loop */
 		ev_timer_init(&exchange_timer, break_exchange_cb, 4., 0.);
 		ev_timer_start(loop, &exchange_timer);
 
@@ -180,6 +181,10 @@ static void send_dis_sec_cb(EV_P_ ev_timer *w, int revents)
 
 /* TODO move somewhere else */
 struct ev_loop *foo;
+/**
+ * @brief This function starts a timer for a dag to regularly send DIO messages
+ * It is called when a DAG is created/initialized
+ */
 void dag_init_timer(struct dag *dag)
 {
 	ev_timer_init(&dag->trickle_w, trickle_cb_sec,
@@ -207,23 +212,6 @@ static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 		/* schedule a dis at statup */
 		ev_timer_init(&iface->dis_w, send_dis_sec_cb, 1, 1);
 		ev_timer_start(loop, &iface->dis_w);
-
-		// DL_FOREACH(iface->rpls.head, r)
-		// {
-		// 	rpl = container_of(r, struct rpl, list);
-		// 	DL_FOREACH(rpl->dags.head, d)
-		// 	{
-		// 		dag = container_of(d, struct dag, list);
-
-		// 		ev_timer_init(&dag->trickle_w, trickle_cb_sec,
-		// 					  dag->trickle_t, dag->trickle_t);
-		// 		ev_timer_start(loop, &dag->trickle_w);
-
-		// 		/* TODO wrong here */
-		// 		if (iface->dodag_root)
-		// 			nl_add_addr(iface->ifindex, &dag->dodagid);
-		// 	}
-		// }
 	}
 
 	return 0;
