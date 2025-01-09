@@ -394,7 +394,7 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	int optlen;
 	int rc;
 
-	// log_hex("msg in process_dao_sec", msg, len);
+	log_hex("msg in process_dao_sec", msg, len);
 
 	uint8_t decrypted_dao[32];
 
@@ -407,7 +407,7 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	memcpy(msg + 65, decrypted_dao + 13, 3);
 	memcpy(msg + 13, decrypted_dao + 16, 16);
 
-	// log_hex("msg information after decryption", msg, len);
+	log_hex("msg information after decryption", msg, len);
 
 	if (len < sizeof(*dao))
 	{
@@ -428,10 +428,11 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 		return;
 	}
 
+	flog(LOG_INFO, "rpl opt  mismsssss %s", msg);
 	p = msg;
 	p += sizeof(*dao);
 	optlen = len;
-	// flog(LOG_INFO, "dao optlen %d", optlen);
+	
 	while (optlen > 0)
 	{
 		opt = (const struct nd_rpl_opt *)p;
@@ -473,7 +474,7 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	DL_FOREACH(dag->childs.head, c)
 	{
 		child = container_of(c, struct child, list);
-
+    
 		rc = nl_add_route_via(dag->iface->ifindex, &child->addr,
 							  &child->from);
 		flog(LOG_INFO, "via route %d %s", rc, strerror(errno));
