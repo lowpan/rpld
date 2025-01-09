@@ -194,8 +194,6 @@ static void process_dio_sec(int sock, struct iface *iface, void *msg,
 	memcpy(msg + 58, decrypted_dio + 13, 3);
 	memcpy(msg + 17, decrypted_dio + 16, 16);
 
-	struct nd_rpl_dio *aux_dio = msg;
-
 	if (len < sizeof(*dio))
 	{
 		flog(LOG_INFO, "dio length mismatch, drop");
@@ -345,7 +343,9 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 
 		rc = nl_add_route_via(dag->iface->ifindex, &child->addr,
 				      &child->from);
-		flog(LOG_INFO, "via route %d %s", rc, strerror(errno));
+		char child_addr_str[INET6_ADDRSTRLEN];
+		addrtostr(&child->addr, child_addr_str, sizeof(child_addr_str));
+		flog(LOG_INFO, "via route %d %s %s", rc, strerror(errno), child_addr_str);
 	}
 
 	// flog(LOG_INFO, "process dao %s", addr_str);
@@ -365,15 +365,15 @@ void decrypt_dao_sec(void *msg, uint8_t *decrypted_data)
 
 	const uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
-	// log_hex("decrypt_dao_sec AES key", aes_key, 16);
+	log_hex("decrypt_dao_sec AES key", aes_key, 16);
 
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
 
-	// log_hex("DAO to decrypt", encrypted_data, 32);
+	log_hex("DAO to decrypt", encrypted_data, 32);
 	AES_ECB_decrypt(&ctx, encrypted_data);
 	AES_ECB_decrypt(&ctx, encrypted_data + 16);
-	// log_hex("DAO decrypted", encrypted_data, 32);
+	log_hex("DAO decrypted", encrypted_data, 32);
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
 }
@@ -394,7 +394,7 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	int optlen;
 	int rc;
 
-	// log_hex("msg in process_dao_sec", msg, len);
+	log_hex("msg in process_dao_sec", msg, len);
 
 	uint8_t decrypted_dao[32];
 
@@ -407,7 +407,7 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	memcpy(msg + 65, decrypted_dao + 13, 3);
 	memcpy(msg + 13, decrypted_dao + 16, 16);
 
-	// log_hex("msg information after decryption", msg, len);
+	log_hex("msg information after decryption", msg, len);
 
 	if (len < sizeof(*dao))
 	{
@@ -419,6 +419,10 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
 	flog(LOG_INFO, "Received Sec Dao from %s", addr_str);
 
+	char dagid_str[INET6_ADDRSTRLEN];
+	addrtostr(&dao->rpl_dagid, dagid_str, sizeof(addr_str));
+	flog(LOG_INFO, "Dag lookup for iface: %s, rpl_instanceid: %d, rpld_dagid: %s", iface->ifname, dao->rpl_instanceid, dagid_str);
+
 	dag = dag_lookup(iface, dao->rpl_instanceid,
 					 &dao->rpl_dagid);
 	if (!dag)
@@ -429,9 +433,9 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	}
 
 	p = msg;
-	p += sizeof(*dao);
+	p += (sizeof(struct nd_rpl_security) + sizeof(struct nd_rpl_dao)) + 1;
 	optlen = len;
-	// flog(LOG_INFO, "dao optlen %d", optlen);
+	flog(LOG_INFO, "dao optlen %d", optlen);
 	while (optlen > 0)
 	{
 		opt = (const struct nd_rpl_opt *)p;
@@ -442,26 +446,35 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 			return;
 		}
 
-		// flog(LOG_INFO, "dao opt %d", opt->type);
+		flog(LOG_INFO, "dao opt %d", opt->type);
 		switch (opt->type)
 		{
-		case RPL_DAO_RPLTARGET:
-			target = (const struct rpl_dao_target *)p;
-			if (optlen < sizeof(*opt))
-			{
-				flog(LOG_INFO, "rpl target length mismatch, drop");
-				return;
-			}
+			case RPL_DAO_RPLTARGET:
+				flog(LOG_INFO, "dao opt rpl target");
+				target = (const struct rpl_dao_target *)p;
+				if (optlen < sizeof(*opt))
+				{
+					flog(LOG_INFO, "rpl target length mismatch, drop");
+					return;
+				}
 
-			addrtostr(&target->rpl_dao_prefix, addr_str, sizeof(addr_str));
-			flog(LOG_INFO, "dao_sec target %s", addr_str);
-			dag_lookup_child_or_create(dag,
-									   &target->rpl_dao_prefix,
-									   &addr->sin6_addr);
-			break;
-		default:
-			/* IGNORE NOT SUPPORTED */
-			break;
+				addrtostr(&target->rpl_dao_prefix, addr_str, sizeof(addr_str));
+				flog(LOG_INFO, "dao_sec target %s", addr_str);
+				dag_lookup_child_or_create(dag,
+										&target->rpl_dao_prefix,
+										&addr->sin6_addr);
+				break;
+			case RPL_OPT_PAD0:
+				flog(LOG_INFO, "dao opt pad0");
+				p += 1;
+				break;
+			case RPL_OPT_PADN:
+				flog(LOG_INFO, "dao opt padn");
+				p += (2 + opt->len);
+				break;
+			default:
+				/* IGNORE NOT SUPPORTED */
+				break;
 		}
 
 		/* TODO critical, we trust opt->len here... which is wire data */
@@ -476,7 +489,9 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 
 		rc = nl_add_route_via(dag->iface->ifindex, &child->addr,
 							  &child->from);
-		flog(LOG_INFO, "via route %d %s", rc, strerror(errno));
+		char child_addr_str[INET6_ADDRSTRLEN];
+		addrtostr(&child->addr, child_addr_str, sizeof(child_addr_str));
+		flog(LOG_INFO, "via route %d %s %s", rc, strerror(errno), child_addr_str);
 	}
 
 	flog(LOG_INFO, "process dao_sec %s", addr_str);
@@ -509,7 +524,9 @@ static void process_daoack(int sock, struct iface *iface, const void *msg,
 
 	if (dag->parent) {
 		rc = nl_add_route_default(dag->iface->ifindex, &dag->parent->addr);
-		flog(LOG_INFO, "default route %d %s", rc, strerror(errno));
+		char parent_addr_str[INET6_ADDRSTRLEN];
+		addrtostr(&dag->parent->addr, parent_addr_str, sizeof(parent_addr_str));
+		flog(LOG_INFO, "default route %d %s %s", rc, strerror(errno), parent_addr_str);
 	}
 }
 
@@ -587,7 +604,9 @@ static void process_daoack_sec(int sock, struct iface *iface, const void *msg,
 	if (dag->parent)
 	{
 		rc = nl_add_route_default(dag->iface->ifindex, &dag->parent->addr);
-		flog(LOG_INFO, "default route %d %s", rc, strerror(errno));
+		char parent_addr_str[INET6_ADDRSTRLEN];
+		addrtostr(&dag->parent->addr, parent_addr_str, sizeof(parent_addr_str));
+		flog(LOG_INFO, "default route %d %s %s", rc, strerror(errno), parent_addr_str);
 	}
 }
 

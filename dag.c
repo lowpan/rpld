@@ -394,8 +394,14 @@ void dag_build_dio(struct dag *dag, struct safe_buffer *sb)
 
 void dag_process_dio(struct dag *dag)
 {
+        flog(LOG_INFO, "dag_process_dio");
         struct in6_addr addr;
         int rc;
+
+        char* addr_str[INET6_ADDRSTRLEN];
+        addrtostr(&addr, addr_str, sizeof(addr_str));
+        char* dest_str[INET6_ADDRSTRLEN];
+        addrtostr(&dag->dest, dest_str, sizeof(addr_str));
 
         rc = gen_stateless_addr(&dag->dest, &dag->iface->llinfo,
                                 &addr);
@@ -484,11 +490,13 @@ void dag_build_dio_sec(struct dag *dag, struct safe_buffer *sb)
 
 void dag_process_dio_sec(struct dag *dag)
 {
+        flog(LOG_INFO, "dag_process_dio_sec");
         struct in6_addr addr;
         int rc;
 
         rc = gen_stateless_addr(&dag->dest, &dag->iface->llinfo,
                                 &addr);
+
         if (rc == -1)
                 return;
 
