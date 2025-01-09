@@ -194,6 +194,8 @@ void dag_init_timer(struct dag *dag)
 
 /**
  * @brief After the configuration is loaded, we setup the rpls via the ifaces from the conf file
+ * The setup consists on scheduling a DIS message to be sent after opening the socket (it is opened in the main function)
+ * and adding a address to the interface (the dodagid)
  *
  * @param loop the event loop
  * @param ifaces the list of ifaces from the conf file
@@ -212,6 +214,24 @@ static int rpld_setup(struct ev_loop *loop, struct list_head *ifaces)
 		/* schedule a dis at statup */
 		ev_timer_init(&iface->dis_w, send_dis_sec_cb, 1, 1);
 		ev_timer_start(loop, &iface->dis_w);
+
+		DL_FOREACH(iface->rpls.head, r)
+		{
+			rpl = container_of(r, struct rpl, list);
+			DL_FOREACH(rpl->dags.head, d)
+			{
+				dag = container_of(d, struct dag, list);
+
+				// ev_timer_init(&dag->trickle_w, trickle_cb_sec,
+				// 			  dag->trickle_t, dag->trickle_t);
+				// ev_timer_start(loop, &dag->trickle_w);
+
+				/* TODO wrong here */
+				/* Add the addr dodagid to the interface */
+				if (iface->dodag_root)
+					nl_add_addr(iface->ifindex, &dag->dodagid);
+			}
+		}
 	}
 
 	return 0;
