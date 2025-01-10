@@ -68,7 +68,6 @@ static inline uint8_t bits_to_bytes(uint8_t bits)
 	return b ? o + 1 : o;
 }
 
-void log_hex(const char *label, const u_int8_t *data, size_t len);
 char *get_hex_str(const u_int8_t *data, size_t len);
 
 int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_size);

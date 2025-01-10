@@ -100,7 +100,7 @@ struct nd_rpl_dis
 {
     u_int8_t rpl_dis_flags;
     u_int8_t rpl_dis_reserved;
-    u_int8_t rpl_dis_options;
+    // u_int8_t rpl_dis_options;
 } PACKED;
 
 /* section 6.7.9, DIS - Solicited Information */

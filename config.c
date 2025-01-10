@@ -383,8 +383,8 @@ static int config_encryption(lua_State *L, struct iface *iface)
                                 iface->secret_key = mzalloc(RSA_KEY_SIZE_BYTES);
                                 key_class_to_uint8(public_key, iface->public_key);
                                 key_class_to_uint8(secret_key, iface->secret_key);
-                                log_hex("Created public key ", iface->public_key, RSA_KEY_SIZE_BYTES);
-                                log_hex("Created private key ", iface->secret_key, RSA_KEY_SIZE_BYTES);
+                                // log_hex("Created public key ", iface->public_key, RSA_KEY_SIZE_BYTES);
+                                // log_hex("Created private key ", iface->secret_key, RSA_KEY_SIZE_BYTES);
                                 lua_pop(L, 1);
                                 return 0;
                         }
@@ -411,8 +411,8 @@ static int config_encryption(lua_State *L, struct iface *iface)
                                 iface->secret_key = mzalloc(RSA_KEY_SIZE_BYTES);
                                 key_class_to_uint8(public_key, iface->public_key);
                                 key_class_to_uint8(secret_key, iface->secret_key);
-                                log_hex("Created public key ", iface->public_key, RSA_KEY_SIZE_BYTES);
-                                log_hex("Created private key ", iface->secret_key, RSA_KEY_SIZE_BYTES);
+                                // log_hex("Created public key ", iface->public_key, RSA_KEY_SIZE_BYTES);
+                                // log_hex("Created private key ", iface->secret_key, RSA_KEY_SIZE_BYTES);
                                 lua_pop(L, 1);
                                 return 0;
                         }
@@ -442,8 +442,8 @@ static int config_encryption(lua_State *L, struct iface *iface)
                                 iface->public_key = mzalloc(CRYPTO_PUBLICKEYBYTES);
                                 iface->secret_key = mzalloc(CRYPTO_SECRETKEYBYTES);
                                 crypto_kem_keypair(iface->public_key, iface->secret_key);
-                                log_hex("Created public key ", iface->public_key, CRYPTO_PUBLICKEYBYTES);
-                                log_hex("Created private key ", iface->secret_key, CRYPTO_SECRETKEYBYTES);
+                                // log_hex("Created public key ", iface->public_key, CRYPTO_PUBLICKEYBYTES);
+                                // log_hex("Created private key ", iface->secret_key, CRYPTO_SECRETKEYBYTES);
                                 lua_pop(L, 1);
                                 return 0;
                         }
@@ -466,8 +466,8 @@ static int config_encryption(lua_State *L, struct iface *iface)
                                 iface->public_key = mzalloc(CRYPTO_PUBLICKEYBYTES);
                                 iface->secret_key = mzalloc(CRYPTO_SECRETKEYBYTES);
                                 crypto_kem_keypair(iface->public_key, iface->secret_key);
-                                log_hex("Created public key ", iface->public_key, CRYPTO_PUBLICKEYBYTES);
-                                log_hex("Created private key ", iface->secret_key, CRYPTO_SECRETKEYBYTES);
+                                // log_hex("Created public key ", iface->public_key, CRYPTO_PUBLICKEYBYTES);
+                                // log_hex("Created private key ", iface->secret_key, CRYPTO_SECRETKEYBYTES);
                                 lua_pop(L, 1);
                                 return 0;
                         }

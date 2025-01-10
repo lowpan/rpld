@@ -41,16 +41,6 @@ int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_
 	return 0;
 }
 
-void log_hex(const char *label, const u_int8_t *data, size_t len)
-{
-	printf("%s with lenght %lu: ", label, len);
-	for (size_t i = 0; i < len; i++)
-	{
-		printf("%02X", data[i]);
-	}
-	printf("\n");
-}
-
 char *get_hex_str(const u_int8_t *data, size_t len)
 {
     // Calculate the required size: "Length: " + number + ": " + hex values + null terminator
