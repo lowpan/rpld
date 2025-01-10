@@ -61,9 +61,9 @@ struct nd_rpl_security
 
 struct nd_rpl_padn
 {
-    uint8_t option_type;   // 0x01 para PadN
-    uint8_t option_length; // N-2 (Ex: 5 -> 7 bytes de padding)
-    uint8_t padding[7];    // 7 bytes de padding zero
+    uint8_t option_type;
+    uint8_t option_length;
+    uint8_t padding[7];
 } PACKED;
 
 #ifndef RPL_SEC_H

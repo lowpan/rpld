@@ -26,6 +26,12 @@ extern u_int8_t shared_secret[CRYPTO_BYTES];
 
 struct nd_rpl_padn *create_padn(uint8_t length);
 
+struct padding_result {
+    size_t num_padns;
+    uint8_t *padding_sizes;
+    size_t total_size;
+};
+
 struct peer
 {
 	struct in6_addr addr;
