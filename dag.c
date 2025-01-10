@@ -673,7 +673,7 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb)
         flog(LOG_INFO, "build dao");
 }
 
-void encrypt_dao(struct nd_rpl_dao *dao, struct nd_rpl_padn **padns, uint8_t num_padns, uint8_t *encrypted_data)
+void encrypt_dao(struct nd_rpl_dao *dao, struct nd_rpl_padn **padns, struct nd_rpl_pad1 **pad1, uint8_t num_padns, uint8_t *encrypted_data)
 {
         flog(LOG_INFO, "encrypt_dao");
         uint8_t data_to_encrypt[32];
@@ -685,6 +685,10 @@ void encrypt_dao(struct nd_rpl_dao *dao, struct nd_rpl_padn **padns, uint8_t num
             memcpy(data_to_encrypt + offset, padns[i]->padding, padns[i]->option_length);
             offset += padns[i]->option_length;
         }
+
+        if (&pad1 != 1)
+            memcpy(data_to_encrypt + offset, &pad1, sizeof(pad1));
+
         memcpy(data_to_encrypt + offset, dao->rpl_dagid.s6_addr, 16);
 
         const uint8_t aes_key[16];
@@ -746,22 +750,31 @@ struct padding_result calculate_padding_dao(size_t struct_size) {
     // Alocar memória dinamicamente para padding_sizes
     uint8_t *padding_sizes = (uint8_t *)malloc(num_padns * sizeof(uint8_t));
     struct padding_result result;
-    result.num_padns = num_padns;
-
+    
     memset(padding_sizes, 0, num_padns * sizeof(uint8_t));
     size_t remaining_padding = padding_needed;
     for (size_t i = 0; i < num_padns; i++) {
-        padding_sizes[i] = (remaining_padding >= MAX_PADN_SIZE) ? MAX_PADN_SIZE : remaining_padding;
-        remaining_padding -= padding_sizes[i];
+        size_t padding_value = (remaining_padding >= MAX_PADN_SIZE) ? MAX_PADN_SIZE : remaining_padding;
+        
+        if (padding_value == 1)            
+            padding_sizes[i] = 1;
+        else{
+            padding_sizes[i] = padding_value;
+            remaining_padding -= padding_value;
+        }
     }
 
+    result.num_padns = num_padns;
     result.padding_sizes = padding_sizes;
     result.total_size = total_size;
 
     for (size_t i = 0; i < num_padns; i++) {
-        flog(LOG_INFO, "PadN[%zu]: %d bytes", i, padding_sizes[i]);
+        if (padding_sizes[i] > 1)
+            flog(LOG_INFO, "PadN[%zu]: %d bytes", i, padding_sizes[i]);
+        else
+            flog(LOG_INFO, "Pad1: 1 byte");
     }
-    
+            
     return result;
 }
 
@@ -776,12 +789,14 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
         struct padding_result result = calculate_padding_dao(sizeof(dao) - 1);
         
         struct nd_rpl_padn *padns[result.num_padns];
-        struct nd_rpl_pad1 *pad1[1] = { 0x00 };
+        struct nd_rpl_pad1 *pad1 = 1 ;
         for (size_t i = 0; i < result.num_padns; i++) {
             if (result.padding_sizes[i] > 1)
                 padns[i] = create_padn(result.padding_sizes[i]);
-            else
-                pad1[0] = 0x00;            
+            else{
+                result.num_padns --;
+                pad1 = 0x00;            
+            }
         }
 
         dag_build_icmp(sb, ND_RPL_SEC_DAG);
@@ -791,7 +806,7 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
         dao.rpl_dagid = dag->dodagid;
 
         uint8_t encrypted_dao[result.total_size];
-        encrypt_dao(&dao, padns, result.num_padns, encrypted_dao);
+        encrypt_dao(&dao, padns, pad1, result.num_padns, encrypted_dao);
 
         memcpy(&dao.rpl_instanceid, encrypted_dao, sizeof(dao.rpl_instanceid)); 
         memcpy(&dao.rpl_resv, encrypted_dao + 1, sizeof(dao.rpl_resv));    
@@ -803,7 +818,7 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
             offset += padns[i]->option_length;
         }
         memcpy(dao.rpl_dagid.s6_addr, encrypted_dao + offset, 16);
-
+        
         safe_buffer_append(sb, &dao_sec, sizeof(dao_sec) + 1);
         safe_buffer_append(sb, &dao, sizeof(dao));
         prefix.prefix = dag->self;
@@ -824,6 +839,9 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
 
         for (size_t i = 0; i < result.num_padns; i++) {
             safe_buffer_append(sb, padns[i], sizeof(padns[i]->option_type) + sizeof(padns[i]->option_length) + result.padding_sizes[i]);
+        }
+        if (pad1 != 1){
+            safe_buffer_append(sb, &pad1, 1);
         }
 
         for (size_t i = 0; i < result.num_padns; i++) {
