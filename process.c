@@ -194,6 +194,7 @@ static void process_dio_sec(int sock, struct iface *iface, void *msg,
 	struct dag *dag;
 	uint16_t rank;
 
+	flog(LOG_INFO, "process dio_sec msg: %s", get_hex_str(msg, len));
 	uint8_t decrypted_dio[32];
 
 	decrypt_dio_sec(msg, decrypted_dio);

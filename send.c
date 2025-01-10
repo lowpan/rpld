@@ -104,6 +104,7 @@ void send_dio_sec(int sock, struct dag *dag)
 		return;
 
 	dag_build_dio_sec(dag, sb);
+	flog(LOG_INFO, "send_dio_sec buffer: %s", get_hex_str(sb->buffer, sb->used));
 	rc = really_send(sock, dag->iface, &all_rpl_addr, sb);
 	
 	char addr_str[INET6_ADDRSTRLEN];

@@ -489,8 +489,10 @@ void dag_build_dio_sec(struct dag *dag, struct safe_buffer *sb)
         safe_buffer_append(sb, &dio_sec, sizeof(dio_sec) + 1);
         safe_buffer_append(sb, &dio, sizeof(dio));
         append_destprefix(dag, sb);
-        safe_buffer_append(sb, &padn, sizeof(padn.option_type) + sizeof(padn.option_length) + 5);
-        safe_buffer_append(sb, &padn_, sizeof(padn_.option_type) + sizeof(padn_.option_length) + 3);
+        safe_buffer_append(sb, &padn, sizeof(padn.option_type) + sizeof(padn.option_length));
+        safe_buffer_append(sb, padn.padding, 5);
+        safe_buffer_append(sb, &padn_, sizeof(padn_.option_type) + sizeof(padn_.option_length));
+        safe_buffer_append(sb, padn_.padding,3);
 }
 
 void dag_process_dio_sec(struct dag *dag)
