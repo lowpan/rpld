@@ -365,15 +365,15 @@ void decrypt_dao_sec(void *msg, uint8_t *decrypted_data)
 
 	const uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
-	log_hex("decrypt_dao_sec AES key", aes_key, 16);
+	// log_hex("decrypt_dao_sec AES key", aes_key, 16);
 
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
 
-	log_hex("DAO to decrypt", encrypted_data, 32);
+	// log_hex("DAO to decrypt", encrypted_data, 32);
 	AES_ECB_decrypt(&ctx, encrypted_data);
 	AES_ECB_decrypt(&ctx, encrypted_data + 16);
-	log_hex("DAO decrypted", encrypted_data, 32);
+	// log_hex("DAO decrypted", encrypted_data, 32);
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
 }
