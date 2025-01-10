@@ -710,10 +710,13 @@ void build_to_encrypt_dao(struct dag *dag, struct safe_buffer *dao_sb, int *enc_
 
         /** DAO fields to encrypt */
         dao.rpl_instanceid = dag->rpl->instance_id;
-        flog(LOG_INFO, "dao instance id: %s", get_hex_str(&dao.rpl_instanceid, 1));
         dao.rpl_dagid = dag->dodagid;
-        safe_buffer_append(dao_sb, &dao, 20);
-        flog(LOG_INFO, "Added DAO to encrypt: %s", get_hex_str(&dao, 20));
+        safe_buffer_append(dao_sb, &dao.rpl_instanceid, 1);
+        safe_buffer_append(dao_sb, &dao.rpl_resv, 1);
+        safe_buffer_append(dao_sb, &dao.rpl_daoseq, 1);
+        safe_buffer_append(dao_sb, &dao.rpl_dagid, 16);
+        // safe_buffer_append(dao_sb, &dao, 20);
+        flog(LOG_INFO, "Added DAO to encrypt: %s", get_hex_str(&dao, 19));
 
         /** Self Target DAGID to encrypt */
         prefix.prefix = dag->self;
@@ -760,9 +763,13 @@ void build_encrypted_dao_packet(struct safe_buffer *sb, u_int8_t *encrypted_dao,
         u_int8_t *parser;
         parser = encrypted_dao;
 
-        memcpy(&dao, parser, 4); /** Get 4+16 bytes of dao */
+        dao.rpl_instanceid = parser [0]; /** Get 4+16 bytes of dao */
+        parser++;
         dao.rpl_flags |= RPL_DAO_D_MASK;
-        parser += 4;
+        dao.rpl_resv = parser[0];
+        parser++;
+        dao.rpl_daoseq = parser[0];
+        parser++;
         memcpy(dao.rpl_dagid.s6_addr, parser, 16); /** Get 16 bytes of dagid */
         parser += 16;
         safe_buffer_append(sb, &dao, sizeof(dao)); /** Add DAO to buffer */
@@ -808,7 +815,7 @@ void build_encrypted_dao_packet(struct safe_buffer *sb, u_int8_t *encrypted_dao,
                 { /** PadN with relative size */
                         struct nd_rpl_padn padn = {};
                         padn.option_type = 0x01;
-                        padn.option_length = missing - 4;
+                        padn.option_length = missing;
 
                         padn.padding = mzalloc(missing);
                         memcpy(padn.padding, parser, missing);

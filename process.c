@@ -425,8 +425,13 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 	len -= sizeof(struct nd_rpl_security) + 1;
 	flog(LOG_INFO, "Moved rpld security. Parser: %s", get_hex_str(parser, len));
 
-	const struct nd_rpl_dao *dao = (const struct nd_rpl_dao *)parser;
-	safe_buffer_append(sb_to_decrypt, dao, 20);
+	struct nd_rpl_dao *dao = (const struct nd_rpl_dao *)parser;
+	// dao->rpl_flags |= RPL_DAO_D_MASK;
+	safe_buffer_append(sb_to_decrypt, &dao->rpl_instanceid, 1);
+	safe_buffer_append(sb_to_decrypt, &dao->rpl_resv, 1);
+	safe_buffer_append(sb_to_decrypt, &dao->rpl_daoseq, 1);
+	safe_buffer_append(sb_to_decrypt, &dao->rpl_dagid, 16);
+	// safe_buffer_append(sb_to_decrypt, dao, 20);
 	flog(LOG_INFO, "Append DAO To Decrypt Buffer with target: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 
 	parser += 20;
@@ -487,7 +492,7 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 	}
 }
 
-void build_decrypted_dao_packet(struct safe_buffer *sb, u_int8_t *decrypted_dao, int *enc_pref, int *aux_missing)
+void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_dao, int *enc_pref, int *aux_missing)
 {
 	struct nd_rpl_security dao_sec = {};
 	struct nd_rpl_dao dao = {};
@@ -499,8 +504,7 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, u_int8_t *decrypted_dao,
 	safe_buffer_append(sb, &dao_sec, sizeof(dao_sec) + 1); /** Add DAO Sec + 1 (9 bytes) to buffer */
 	flog(LOG_INFO, "Buffer with dao sec: %s", get_hex_str(sb->buffer, sb->used));
 
-	u_int8_t *parser;
-	parser = decrypted_dao;
+	u_int8_t const *parser = (u_int8_t const *)decrypted_dao;
 
 	memcpy(&dao, parser, 4); /** Get 4+16 bytes of dao */
 	dao.rpl_flags |= RPL_DAO_D_MASK;
