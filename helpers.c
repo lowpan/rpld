@@ -51,6 +51,32 @@ void log_hex(const char *label, const u_int8_t *data, size_t len)
 	printf("\n");
 }
 
+char *get_hex_str(const u_int8_t *data, size_t len)
+{
+    // Calculate the required size: "Length: " + number + ": " + hex values + null terminator
+    size_t result_len = 8 + 20 + (len * 2) + 1; // 8 for "Length: ", 20 for length number, 2 chars per byte, 1 for '\0'
+
+    // Allocate memory for the result string
+    char *result = malloc(result_len);
+    if (!result)
+    {
+        return NULL; // Handle memory allocation failure
+    }
+
+    // Write the length into the result string
+    snprintf(result, result_len, "Length: %lu: ", len);
+
+    // Append hex values
+    char *ptr = result + strlen(result); // Move pointer to the end of the current string
+    for (size_t i = 0; i < len; i++)
+    {
+        snprintf(ptr, 3, "%02X", data[i]); // Write 2 hex chars
+        ptr += 2;                          // Advance by 2 characters
+    }
+
+    return result;
+}
+
 /** This function receives as input a public_key_class
  * and outputs a uint8_t array in key_array corresponding to the concatenation of the public key fields */
 void key_class_to_uint8(struct key_class key_class, u_int8_t *key_array)
