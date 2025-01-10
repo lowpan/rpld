@@ -703,7 +703,7 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb)
 // }
 
 u_int8_t* encrypt_dao(u_int8_t* buf_to_enc, size_t len) {
-        
+
 }
 
 void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
@@ -749,9 +749,12 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
         safe_buffer_append(dao_sb, padding, missing);
         log_hex("Final Dao Buffer", dao_sb->buffer, dao_sb->used);
 
+        /** Encrypt data */
         uint8_t encrypted_dao[dao_sb->used];
 
         dao.rpl_flags |= RPL_DAO_D_MASK;
+
+        /** Reorganize */
 
 
         // Definir PadN com 7 bytes de padding
