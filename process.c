@@ -173,8 +173,10 @@ void decrypt_dio_sec(void *msg, uint8_t *decrypted_data)
 	AES_init_ctx(&ctx, aes_key);
 
 	// log_hex("DIO to decrypt", encrypted_data, 32);
+	flog(LOG_INFO, "DIO to decrypt: %s", get_hex_str(encrypted_data, 32));
 	AES_ECB_decrypt(&ctx, encrypted_data);
 	AES_ECB_decrypt(&ctx, encrypted_data + 16);
+	flog(LOG_INFO, "DIO decrypted: %s", get_hex_str(encrypted_data, 32));
 	// log_hex("DIO decrypted", encrypted_data, 32);
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
@@ -200,6 +202,8 @@ static void process_dio_sec(int sock, struct iface *iface, void *msg,
 	memcpy(msg + 51, decrypted_dio + 8, 5);
 	memcpy(msg + 58, decrypted_dio + 13, 3);
 	memcpy(msg + 17, decrypted_dio + 16, 16);
+	
+	flog(LOG_INFO, "process dio instance_id: %s", get_hex_str(&dio->rpl_instanceid, 1));
 
 	if (len < sizeof(*dio))
 	{
@@ -419,11 +423,11 @@ u_int8_t *decrypt_dao_sec(u_int8_t *buf_to_dec, size_t len)
 void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to_decrypt, int *enc_pref, int *missing)
 {
 	u_int8_t const *parser = (u_int8_t const *)msg;
-	flog(LOG_INFO, "Start Parse and Decrypt DAO. Parser: %s", get_hex_str(parser, len));
+	// flog(LOG_INFO, "Start Parse and Decrypt DAO. Parser: %s", get_hex_str(parser, len));
 
 	parser += sizeof(struct nd_rpl_security) + 1; /** Move to start of DAO */
 	len -= sizeof(struct nd_rpl_security) + 1;
-	flog(LOG_INFO, "Moved rpld security. Parser: %s", get_hex_str(parser, len));
+	// flog(LOG_INFO, "Moved rpld security. Parser: %s", get_hex_str(parser, len));
 
 	struct nd_rpl_dao *dao = (const struct nd_rpl_dao *)parser;
 	// dao->rpl_flags |= RPL_DAO_D_MASK;
@@ -432,11 +436,11 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 	safe_buffer_append(sb_to_decrypt, &dao->rpl_daoseq, 1);
 	safe_buffer_append(sb_to_decrypt, &dao->rpl_dagid, 16);
 	// safe_buffer_append(sb_to_decrypt, dao, 20);
-	flog(LOG_INFO, "Append DAO To Decrypt Buffer with target: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
+	// flog(LOG_INFO, "Append DAO To Decrypt Buffer with target: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 
 	parser += 20;
 	len -= 20;
-	flog(LOG_INFO, "Moved DAO. Parser: %s", get_hex_str(parser, len));
+	// flog(LOG_INFO, "Moved DAO. Parser: %s", get_hex_str(parser, len));
 
 	int optlen = len;
 	const struct nd_rpl_opt *opt;
@@ -446,7 +450,7 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 	while (optlen > 0)
 	{
 		opt = (const struct nd_rpl_opt *)parser;
-		flog(LOG_INFO, "DAO opt %s, type %d, len %d", get_hex_str(opt, sizeof(struct nd_rpl_opt)), opt->type, opt->len);
+		// flog(LOG_INFO, "DAO opt %s, type %d, len %d", get_hex_str(opt, sizeof(struct nd_rpl_opt)), opt->type, opt->len);
 
 		if (optlen == 1)
 		{
@@ -454,7 +458,7 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 			safe_buffer_append(sb_to_decrypt, pad1, 1);
 			*missing += 1;
 
-			flog(LOG_INFO, "Append To Decrypt Pad1: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
+			// flog(LOG_INFO, "Append To Decrypt Pad1: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 			parser += 1;
 			optlen -= 1;
 		}
@@ -465,12 +469,12 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 			{
 			case RPL_DAO_RPLTARGET:
 				target = (const struct rpl_dao_target *)parser;
-				flog(LOG_INFO, "Target: %s", get_hex_str(target, 20));
+				// flog(LOG_INFO, "Target: %s", get_hex_str(target, 20));
 
 				safe_buffer_append(sb_to_decrypt, &target->rpl_dao_prefix, 16);
-				flog(LOG_INFO, "Append To Decrypt Target Prefix: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
+				// flog(LOG_INFO, "Append To Decrypt Target Prefix: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 				safe_buffer_append(sb_to_decrypt, &target->rpl_dao_prefixlen, 1);
-				flog(LOG_INFO, "Append To Decrypt Target Prefix Length: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
+				// flog(LOG_INFO, "Append To Decrypt Target Prefix Length: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 				*enc_pref += 1;
 				break;
 			case RPL_OPT_PADN:
@@ -478,7 +482,7 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 				safe_buffer_append(sb_to_decrypt, &padn->padding, padn->option_length);
 				*missing += padn->option_length;
 
-				flog(LOG_INFO, "Append To Decrypt PadN: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
+				// flog(LOG_INFO, "Append To Decrypt PadN: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 				break;
 			default:
 				/* IGNORE NOT SUPPORTED */
@@ -488,7 +492,7 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 			optlen -= (2 + opt->len);
 		}
 
-		flog(LOG_INFO, "dao optlen %d", optlen);
+		// flog(LOG_INFO, "dao optlen %d", optlen);
 	}
 }
 
@@ -502,38 +506,42 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_da
 	const struct list *c;
 
 	safe_buffer_append(sb, &dao_sec, sizeof(dao_sec) + 1); /** Add DAO Sec + 1 (9 bytes) to buffer */
-	flog(LOG_INFO, "Buffer with dao sec: %s", get_hex_str(sb->buffer, sb->used));
+	// flog(LOG_INFO, "Buffer with dao sec: %s", get_hex_str(sb->buffer, sb->used));
 
 	u_int8_t const *parser = (u_int8_t const *)decrypted_dao;
 
-	memcpy(&dao, parser, 4); /** Get 4+16 bytes of dao */
+	dao.rpl_instanceid = parser[0]; /** Get 4+16 bytes of dao */
+	parser++;
 	dao.rpl_flags |= RPL_DAO_D_MASK;
-	parser += 4;
+	dao.rpl_resv = parser[0];
+	parser++;
+	dao.rpl_daoseq = parser[0];
+	parser++;
 	memcpy(dao.rpl_dagid.s6_addr, parser, 16); /** Get 16 bytes of dagid */
 	parser += 16;
 	safe_buffer_append(sb, &dao, sizeof(dao)); /** Add DAO to buffer */
 
-	flog(LOG_INFO, "Buffer with dao: %s", get_hex_str(sb->buffer, sb->used));
+	// flog(LOG_INFO, "Buffer with dao: %s", get_hex_str(sb->buffer, sb->used));
 
 	/** Add preffix to target and targets to buffer */
 	for (int i = 0; i < *enc_pref; i++)
 	{
 		memcpy(&prefix.prefix, parser, 16);
-		flog(LOG_INFO, "preffix: %s", get_hex_str(&prefix.prefix, 16));
+		// flog(LOG_INFO, "preffix: %s", get_hex_str(&prefix.prefix, 16));
 		parser += 16;
 		memcpy(&prefix.len, parser, 1);
-		flog(LOG_INFO, "preffix len: %s", get_hex_str(&prefix.len, 1));
+		// flog(LOG_INFO, "preffix len: %s", get_hex_str(&prefix.len, 1));
 		parser += 1;
 
 		append_target(&prefix, sb);
-		flog(LOG_INFO, "Append Buffer with target: %s", get_hex_str(sb->buffer, sb->used));
+		// flog(LOG_INFO, "Append Buffer with target: %s", get_hex_str(sb->buffer, sb->used));
 	}
 
 	/** Add paddings */
 	int missing = *aux_missing;
 	while (missing > 0)
 	{
-		flog(LOG_INFO, "missing: %d", missing);
+		// flog(LOG_INFO, "missing: %d", missing);
 		if (missing > 5)
 		{ /** PadN with max size */
 			struct nd_rpl_padn padn = {};
@@ -542,29 +550,29 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_da
 
 			padn.padding = mzalloc(5);
 			memcpy(padn.padding, parser, 5);
-			flog(LOG_INFO, "5 pads: %s", get_hex_str(padn.padding, 5));
+			// flog(LOG_INFO, "5 pads: %s", get_hex_str(padn.padding, 5));
 
 			safe_buffer_append(sb, &padn, 2);
 			safe_buffer_append(sb, padn.padding, 5);
 			parser += 5;
 			missing -= 5;
-			flog(LOG_INFO, "Buffer with padN of %d pads: %s", 5, get_hex_str(sb->buffer, sb->used));
+			// flog(LOG_INFO, "Buffer with padN of %d pads: %s", 5, get_hex_str(sb->buffer, sb->used));
 		}
 		else if (missing > 1)
 		{ /** PadN with relative size */
 			struct nd_rpl_padn padn = {};
 			padn.option_type = 0x01;
-			padn.option_length = missing - 4;
+			padn.option_length = missing;
 
 			padn.padding = mzalloc(missing);
 			memcpy(padn.padding, parser, missing);
-			flog(LOG_INFO, "%d pads: %s", missing, get_hex_str(padn.padding, missing));
+			// flog(LOG_INFO, "%d pads: %s", missing, get_hex_str(padn.padding, missing));
 
 			safe_buffer_append(sb, &padn, 2);
 			safe_buffer_append(sb, padn.padding, missing);
 			parser += missing;
 			missing = 0;
-			flog(LOG_INFO, "Buffer with padN of %d pads: %s", missing, get_hex_str(sb->buffer, sb->used));
+			// flog(LOG_INFO, "Buffer with padN of %d pads: %s", missing, get_hex_str(sb->buffer, sb->used));
 		}
 		else if (missing == 1)
 		{ /** Pad1 */
@@ -573,7 +581,7 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_da
 			safe_buffer_append(sb, &pad1, 1);
 			missing = 0;
 			parser++;
-			flog(LOG_INFO, "Buffer with pad1: %s", get_hex_str(sb->buffer, sb->used));
+			// flog(LOG_INFO, "Buffer with pad1: %s", get_hex_str(sb->buffer, sb->used));
 		}
 		else
 		{
@@ -582,7 +590,7 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_da
 	}
 }
 
-void parse_and_decrypt_dao_sec(const void *msg, size_t len)
+void parse_and_decrypt_dao_sec(const void *msg, size_t len, u_int8_t **out_decrypted_dao, size_t *out_decrypted_len)
 {
 	struct safe_buffer *sb_to_decrypt = safe_buffer_new();
 	struct safe_buffer *sb_decrypted_msg = safe_buffer_new();
@@ -596,16 +604,24 @@ void parse_and_decrypt_dao_sec(const void *msg, size_t len)
 	memcpy(decrypted_dao, decrypt_dao_sec(sb_to_decrypt->buffer, sb_to_decrypt->used), sb_to_decrypt->used);
 	flog(LOG_INFO, "DAO decrypted: %s", get_hex_str(decrypted_dao, sizeof(decrypted_dao)));
 
-	// build_decrypted_dao_packet(sb_decrypted_msg, decrypted_dao, &enc_pref, &missing);
+	build_decrypted_dao_packet(sb_decrypted_msg, decrypted_dao, &enc_pref, &missing);
+
+	*out_decrypted_dao = sb_decrypted_msg->buffer;
+	*out_decrypted_len = sb_decrypted_msg->used;
 }
 
 static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 							size_t len, struct sockaddr_in6 *addr)
 {
-	parse_and_decrypt_dao_sec(msg, len);
+	flog(LOG_INFO, "dao_sec before decryption %s", get_hex_str(msg, len));
+	u_int8_t *out_decrypted_dao; size_t out_decrypted_len;
 
-	const struct nd_rpl_security *dao_sec = (const struct nd_rpl_security *)msg;
-	const struct nd_rpl_dao *dao = (const struct nd_rpl_dao *)(msg + sizeof(struct nd_rpl_security) + 1);
+	parse_and_decrypt_dao_sec(msg, len, &out_decrypted_dao, &out_decrypted_len);
+
+	flog(LOG_INFO, "dao_sec after decryption %s", get_hex_str(out_decrypted_dao, out_decrypted_len));
+
+	const struct nd_rpl_security *dao_sec = (const struct nd_rpl_security *)out_decrypted_dao;
+	const struct nd_rpl_dao *dao = (const struct nd_rpl_dao *)(out_decrypted_dao + sizeof(struct nd_rpl_security) + 1);
 	const struct rpl_dao_target *target;
 	// const struct nd_rpl_dao *dao = msg;
 	char addr_str[INET6_ADDRSTRLEN];
@@ -617,20 +633,18 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	int optlen;
 	int rc;
 
-	log_hex("msg in process_dao_sec", msg, len);
 
-	uint8_t decrypted_dao[32];
+	// uint8_t decrypted_dao[32];
 
-	decrypt_dao_sec(msg, decrypted_dao);
+	// decrypt_dao_sec(msg, decrypted_dao);
 
-	memcpy(msg + 9, decrypted_dao, 1);
-	memcpy(msg + 11, decrypted_dao + 1, 2);
-	memcpy(msg + 51, decrypted_dao + 3, 5);
-	memcpy(msg + 58, decrypted_dao + 8, 5);
-	memcpy(msg + 65, decrypted_dao + 13, 3);
-	memcpy(msg + 13, decrypted_dao + 16, 16);
+	// memcpy(msg + 9, decrypted_dao, 1);
+	// memcpy(msg + 11, decrypted_dao + 1, 2);
+	// memcpy(msg + 51, decrypted_dao + 3, 5);
+	// memcpy(msg + 58, decrypted_dao + 8, 5);
+	// memcpy(msg + 65, decrypted_dao + 13, 3);
+	// memcpy(msg + 13, decrypted_dao + 16, 16);
 
-	log_hex("msg information after decryption", msg, len);
 
 	if (len < sizeof(*dao))
 	{
@@ -655,7 +669,7 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 		return;
 	}
 
-	p = msg;
+	p = out_decrypted_dao;
 	p += (sizeof(struct nd_rpl_security) + sizeof(struct nd_rpl_dao)) + 1;
 	optlen = len;
 	flog(LOG_INFO, "dao optlen %d", optlen);
