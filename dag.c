@@ -441,10 +441,10 @@ void encrypt_dio(struct nd_rpl_dio *dio, struct nd_rpl_padn *padn, struct nd_rpl
         AES_init_ctx(&ctx, aes_key);
 
         // log_hex("DIO to encrypt", data_to_encrypt, 32);
-        flog(LOG_INFO, "DIO to encrypt: %s", get_hex_str(data_to_encrypt, 32));
+        // flog(LOG_INFO, "DIO to encrypt: %s", get_hex_str(data_to_encrypt, 32));
         AES_ECB_encrypt(&ctx, data_to_encrypt);
         AES_ECB_encrypt(&ctx, data_to_encrypt + 16);
-        flog(LOG_INFO, "DIO encrypted: %s", get_hex_str(data_to_encrypt, 32));
+        // flog(LOG_INFO, "DIO encrypted: %s", get_hex_str(data_to_encrypt, 32));
         // log_hex("DIO encrypted", data_to_encrypt, 32);
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
@@ -470,10 +470,10 @@ void dag_build_dio_sec(struct dag *dag, struct safe_buffer *sb)
         dag_build_icmp(sb, ND_RPL_SEC_DAG_IO);
 
         dio.rpl_instanceid = dag->rpl->instance_id;
-        flog(LOG_INFO, "dio instance_id: %s", get_hex_str(&dio.rpl_instanceid, 1));
+        // flog(LOG_INFO, "dio instance_id: %s", get_hex_str(&dio.rpl_instanceid, 1));
         dio.rpl_version = dag->version;
         dio.rpl_dtsn = dag->dtsn++;
-        flog(LOG_INFO, "my_rank %d", dag->my_rank);
+        // flog(LOG_INFO, "my_rank %d", dag->my_rank);
         dio.rpl_dagrank = htons(dag->my_rank);
         dio.rpl_mopprf = ND_RPL_DIO_GROUNDED | RPL_DIO_STORING_NO_MULTICAST << 3;
         dio.rpl_dagid = dag->dodagid;
@@ -897,11 +897,8 @@ void encrypt_dis(struct nd_rpl_dis *dis, struct nd_rpl_padn *padn, struct nd_rpl
         flog(LOG_INFO, "encrypt_dis");
         uint8_t data_to_encrypt[16];
         memcpy(data_to_encrypt, dis, 2);
-        // flog(LOG_INFO, "HOLY SHIT padn");
         memcpy(data_to_encrypt + 2, padn->padding, padn->option_length);
-        // flog(LOG_INFO, "HOLY SHIT pad1");
         memcpy(data_to_encrypt + 2 + padn->option_length, padn1->padding, padn1->option_length);
-        // flog(LOG_INFO, "HOLY SHIT padn_");
         memcpy(data_to_encrypt + 2 + padn->option_length + padn1->option_length, padn_->padding, padn_->option_length);
 
         const uint8_t aes_key[16];
@@ -911,9 +908,9 @@ void encrypt_dis(struct nd_rpl_dis *dis, struct nd_rpl_padn *padn, struct nd_rpl
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
-        // log_hex("DIS to encrypt", data_to_encrypt, 16);
+        flog(LOG_INFO, "DIS to encrypt: %s", get_hex_str(data_to_encrypt, 16));
         AES_ECB_encrypt(&ctx, data_to_encrypt);
-        // log_hex("DIS encrypted", data_to_encrypt, 16);
+        flog(LOG_INFO, "DIS encrypted: %s", get_hex_str(data_to_encrypt, 16));
 
         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
 }
@@ -938,13 +935,11 @@ void dag_build_dis_sec(struct safe_buffer *sb)
         padn1.option_type = 0x01; // PadN
         padn1.option_length = 5;  // 7 bytes de padding (5 + 2)
         padn1.padding = mzalloc(7);
-        memset(padn1.padding, 0, 7);
 
         // Definir PadN com 6 bytes de padding
         padn_.option_type = 0x01; // PadN
         padn_.option_length = 4;  // 6 bytes de padding (4 + 2)
-        padn_.padding = mzalloc(6);
-        memset(padn_.padding, 0, 6);
+        padn_.padding = mzalloc(7);
 
         uint8_t encrypted_dis[16];
         encrypt_dis(&dis, &padn, &padn1, &padn_, encrypted_dis);
@@ -956,10 +951,16 @@ void dag_build_dis_sec(struct safe_buffer *sb)
         memcpy(padn1.padding, encrypted_dis + 2 + padn.option_length, padn1.option_length);
         memcpy(padn_.padding, encrypted_dis + 2 + padn.option_length + padn1.option_length, padn_.option_length);
 
-        safe_buffer_append(sb, &dis, sizeof(dis) - 1);
-        safe_buffer_append(sb, &padn, sizeof(padn.option_type) + sizeof(padn.option_length) + 5);
-        safe_buffer_append(sb, &padn1, sizeof(padn1.option_type) + sizeof(padn1.option_length) + 5);
-        safe_buffer_append(sb, &padn_, sizeof(padn_.option_type) + sizeof(padn_.option_length) + 4);
+        safe_buffer_append(sb, &dis, 2);
+
+        safe_buffer_append(sb, &padn, sizeof(padn.option_type) + sizeof(padn.option_length));
+        safe_buffer_append(sb, padn.padding, 5);
+
+        safe_buffer_append(sb, &padn1, sizeof(padn1.option_type) + sizeof(padn1.option_length));
+        safe_buffer_append(sb, padn1.padding, 5);
+
+        safe_buffer_append(sb, &padn_, sizeof(padn_.option_type) + sizeof(padn_.option_length));
+        safe_buffer_append(sb, padn_.padding, 4);
 
         flog(LOG_INFO, "build dis_sec");
 }

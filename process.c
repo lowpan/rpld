@@ -173,10 +173,10 @@ void decrypt_dio_sec(void *msg, uint8_t *decrypted_data)
 	AES_init_ctx(&ctx, aes_key);
 
 	// log_hex("DIO to decrypt", encrypted_data, 32);
-	flog(LOG_INFO, "DIO to decrypt: %s", get_hex_str(encrypted_data, 32));
+	// flog(LOG_INFO, "DIO to decrypt: %s", get_hex_str(encrypted_data, 32));
 	AES_ECB_decrypt(&ctx, encrypted_data);
 	AES_ECB_decrypt(&ctx, encrypted_data + 16);
-	flog(LOG_INFO, "DIO decrypted: %s", get_hex_str(encrypted_data, 32));
+	// flog(LOG_INFO, "DIO decrypted: %s", get_hex_str(encrypted_data, 32));
 	// log_hex("DIO decrypted", encrypted_data, 32);
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
@@ -878,7 +878,7 @@ void decrypt_dis_sec(void *msg, uint8_t *decrypted_data)
 {
 	// flog(LOG_INFO, "decrypt_dis_sec");
 	uint8_t encrypted_data[16];
-	memcpy(encrypted_data, msg + 8, 2);
+	memcpy(encrypted_data, msg + 9, 2);
 	memcpy(encrypted_data + 2, msg + 13, 5);
 	memcpy(encrypted_data + 7, msg + 20, 5);
 	memcpy(encrypted_data + 12, msg + 27, 4);
@@ -891,7 +891,9 @@ void decrypt_dis_sec(void *msg, uint8_t *decrypted_data)
 	AES_init_ctx(&ctx, aes_key);
 
 	// log_hex("DIS to decrypt", encrypted_data, 16);
+	flog(LOG_INFO, "DIS to decrypt %s", get_hex_str(encrypted_data, 16));
 	AES_ECB_decrypt(&ctx, encrypted_data);
+	flog(LOG_INFO, "DIS decrypted %s", get_hex_str(encrypted_data, 16));
 	// log_hex("DIS decrypted", encrypted_data, 16);
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
@@ -908,7 +910,7 @@ static void process_dis_sec(int sock, struct iface *iface, void *msg,
 	// log_hex("Encrypted DIS in process_dis_sec", msg, len);
 
 	uint8_t decrypted_dis[16];
-
+	flog(LOG_INFO, "decrypt_dis_sec buffer: %s", get_hex_str(msg, len));
 	decrypt_dis_sec(msg, decrypted_dis);
 
 	// log_hex("Decrypted DIS in process_dis_sec", decrypted_dis, 16);
