@@ -398,9 +398,9 @@ void dag_process_dio(struct dag *dag)
         struct in6_addr addr;
         int rc;
 
-        char* addr_str[INET6_ADDRSTRLEN];
+        char *addr_str[INET6_ADDRSTRLEN];
         addrtostr(&addr, addr_str, sizeof(addr_str));
-        char* dest_str[INET6_ADDRSTRLEN];
+        char *dest_str[INET6_ADDRSTRLEN];
         addrtostr(&dag->dest, dest_str, sizeof(addr_str));
 
         rc = gen_stateless_addr(&dag->dest, &dag->iface->llinfo,
@@ -547,9 +547,9 @@ void encrypt_daoack_sec(struct nd_rpl_daoack *dao, struct nd_rpl_padn *padn, str
 {
         flog(LOG_INFO, "encrypt_daoack_sec");
         uint8_t data_to_encrypt[32];
-        memcpy(data_to_encrypt, &dao->rpl_instanceid, 1);  
-        memcpy(data_to_encrypt + 1, &dao->rpl_daoseq, 1);   
-        memcpy(data_to_encrypt + 2, &dao->rpl_status, 1); 
+        memcpy(data_to_encrypt, &dao->rpl_instanceid, 1);
+        memcpy(data_to_encrypt + 1, &dao->rpl_daoseq, 1);
+        memcpy(data_to_encrypt + 2, &dao->rpl_status, 1);
         memcpy(data_to_encrypt + 3, padn->padding, padn->option_length);
         memcpy(data_to_encrypt + 3 + padn->option_length, padn1->padding, padn1->option_length);
         memcpy(data_to_encrypt + 3 + padn->option_length + padn1->option_length, padn_->padding, padn_->option_length);
@@ -607,7 +607,7 @@ void dag_build_dao_ack_sec(struct dag *dag, struct safe_buffer *sb)
         uint8_t encrypted_daoack[32];
         encrypt_daoack_sec(&dao, &padn, &padn1, &padn_, encrypted_daoack);
 
-        memcpy(&dao.rpl_instanceid, encrypted_daoack, 1); 
+        memcpy(&dao.rpl_instanceid, encrypted_daoack, 1);
         memcpy(&dao.rpl_daoseq, encrypted_daoack + 1, 1);
         memcpy(&dao.rpl_status, encrypted_daoack + 2, 1);
         memcpy(padn.padding, encrypted_daoack + 3, padn.option_length);
@@ -676,66 +676,37 @@ void dag_build_dao(struct dag *dag, struct safe_buffer *sb)
         flog(LOG_INFO, "build dao");
 }
 
-// void encrypt_dao(struct nd_rpl_dao *dao, struct nd_rpl_padn *padn, struct nd_rpl_padn *padn1, struct nd_rpl_padn *padn_, uint8_t *encrypted_data)
-// {
-//         flog(LOG_INFO, "encrypt_dao");
-//         uint8_t data_to_encrypt[32];
-//         memcpy(data_to_encrypt, &dao->rpl_instanceid, 1);  
-//         memcpy(data_to_encrypt + 1, &dao->rpl_resv, 1);   
-//         memcpy(data_to_encrypt + 2, &dao->rpl_daoseq, 1); 
-//         memcpy(data_to_encrypt + 3, padn->padding, padn->option_length);
-//         memcpy(data_to_encrypt + 3 + padn->option_length, padn1->padding, padn1->option_length);
-//         memcpy(data_to_encrypt + 3 + padn->option_length + padn1->option_length, padn_->padding, padn_->option_length);
-//         memcpy(data_to_encrypt + 3 + padn->option_length + padn1->option_length + padn_->option_length, dao->rpl_dagid.s6_addr, 16);
-// 
-//         const uint8_t aes_key[16];
-//         memcpy(aes_key, shared_secret, 16);
-//         // log_hex("encrypt_dao AES key", aes_key, 16);
-// 
-//         struct AES_ctx ctx;
-//         AES_init_ctx(&ctx, aes_key);
-// 
-//         // log_hex("DAO to encrypt", data_to_encrypt, 32);
-//         AES_ECB_encrypt(&ctx, data_to_encrypt);
-//         AES_ECB_encrypt(&ctx, data_to_encrypt + 16);
-// 
-//         memcpy(encrypted_data, data_to_encrypt, sizeof(data_to_encrypt));
-//         // log_hex("DAO encrypted", encrypted_data, 32);
-// }
-
-u_int8_t* encrypt_dao(u_int8_t* buf_to_enc, size_t len) {
+u_int8_t *encrypt_dao(u_int8_t *buf_to_enc, size_t len)
+{
         const uint8_t aes_key[16];
         memcpy(aes_key, shared_secret, 16);
         struct AES_ctx ctx;
         AES_init_ctx(&ctx, aes_key);
 
-        int rounds = len/16;
+        int rounds = len / 16;
         flog(LOG_INFO, "encryption rounds: %d", rounds);
-        u_int8_t* encrypted_data = mzalloc(len);
+        u_int8_t *encrypted_data = mzalloc(len);
         u_int8_t data_pack_to_encrypt[16];
-        for (int i = 0; i < rounds; i++) {
+        for (int i = 0; i < rounds; i++)
+        {
                 memset(data_pack_to_encrypt, 0, 16);
 
-                memcpy(data_pack_to_encrypt, buf_to_enc + i*16, 16);
+                memcpy(data_pack_to_encrypt, buf_to_enc + i * 16, 16);
                 AES_ECB_encrypt(&ctx, data_pack_to_encrypt);
-                
-                memcpy(encrypted_data + i*16, data_pack_to_encrypt, 16);
+
+                memcpy(encrypted_data + i * 16, data_pack_to_encrypt, 16);
         }
 
         return encrypted_data;
 }
 
-void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
+void build_to_encrypt_dao(struct dag *dag, struct safe_buffer *dao_sb, int *enc_pref, int *missing)
 {
-        struct nd_rpl_security dao_sec = {};
         struct nd_rpl_dao dao = {};
-        struct safe_buffer *dao_sb = safe_buffer_new();
-
+        // struct safe_buffer *dao_sb = safe_buffer_new();
         struct in6_prefix prefix;
         const struct child *child;
         const struct list *c;
-
-        dag_build_icmp(sb, ND_RPL_SEC_DAG);
 
         /** DAO fields to encrypt */
         dao.rpl_instanceid = dag->rpl->instance_id;
@@ -749,8 +720,7 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
         prefix.len = 128;
         safe_buffer_append(dao_sb, &prefix, 17);
         flog(LOG_INFO, "Added Preffix to encrypt: %s", get_hex_str(&prefix, 17));
-        // append_target(&prefix, dao_sb);
-        int enc_pref = 1;
+        *enc_pref = 1;
 
         /** Childs Target DAGID to encrypt */
         DL_FOREACH(dag->childs.head, c)
@@ -762,29 +732,34 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
                 safe_buffer_append(dao_sb, &prefix, 17);
                 append_target(&prefix, dao_sb);
                 flog(LOG_INFO, "Added child Preffix to encrypt: %s", get_hex_str(&prefix, 17));
-                enc_pref++;
+                *enc_pref++;
         }
 
         /** Number of Pads to encrypt */
-        int missing = 16 - (dao_sb->used % 16);
-        u_int8_t padding[missing];
-        memset(padding, 0, missing);
-        flog(LOG_INFO, "Added Padding to encrypt: %s", get_hex_str(padding, missing));
+        *missing = 16 - (dao_sb->used % 16);
+        u_int8_t padding[*missing];
+        memset(padding, 0, *missing);
+        flog(LOG_INFO, "Added Padding to encrypt: %s", get_hex_str(padding, *missing));
 
-        safe_buffer_append(dao_sb, padding, missing);
+        safe_buffer_append(dao_sb, padding, *missing);
         flog(LOG_INFO, "DAO to encrypt: %s", get_hex_str(dao_sb->buffer, dao_sb->used));
+}
 
-        /** Encrypt data */
+void build_encrypted_dao_packet(struct dag *dag, struct safe_buffer *sb, struct safe_buffer *dao_sb, int *enc_pref, int *aux_missing)
+{
         uint8_t encrypted_dao[dao_sb->used];
-        memcpy(encrypted_dao, encrypt_dao(dao_sb->buffer, dao_sb->used), dao_sb->used);
-        flog(LOG_INFO, "DAO encrypted: %s", get_hex_str(encrypted_dao, sizeof(encrypted_dao)));
+        struct nd_rpl_security dao_sec = {};
+        struct nd_rpl_dao dao = {};
+        struct safe_buffer *dao_sb = safe_buffer_new();
 
+        struct in6_prefix prefix;
+        const struct child *child;
+        const struct list *c;
 
-        /** Reorganize */
         safe_buffer_append(sb, &dao_sec, 8); /** Add DAO Sec + 1 (9 bytes) to buffer */
         flog(LOG_INFO, "Buffer with dao sec: %s", get_hex_str(sb->buffer, sb->used));
 
-        u_int8_t* parser;
+        u_int8_t *parser;
         parser = encrypted_dao;
 
         memcpy(&dao, parser, 4); /** Get 4+16 bytes of dao */
@@ -797,22 +772,26 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
         flog(LOG_INFO, "Buffer with dao: %s", get_hex_str(sb->buffer, sb->used));
 
         /** Add preffix to target and targets to buffer */
-        for (int i = 0; i < enc_pref; i++) {
+        for (int i = 0; i < *enc_pref; i++)
+        {
                 memcpy(&prefix.prefix, parser, 16);
                 flog(LOG_INFO, "preffix: %s", get_hex_str(&prefix.prefix, 16));
                 parser += 16;
                 memcpy(&prefix.len, parser, 1);
                 flog(LOG_INFO, "preffix len: %s", get_hex_str(&prefix.len, 1));
                 parser++;
-                
+
                 append_target(&prefix, sb);
                 flog(LOG_INFO, "Append Buffer with target: %s", get_hex_str(sb->buffer, sb->used));
         }
 
         /** Add paddings */
-        while (missing > 0) {
+        int missing = *aux_missing;
+        while (missing > 0)
+        {
                 flog(LOG_INFO, "missing: %d", missing);
-                if (missing > 7) { /** PadN with max size */
+                if (missing > 7)
+                { /** PadN with max size */
                         struct nd_rpl_padn padn = {};
                         padn.option_type = 0x01;
                         padn.option_length = 5;
@@ -826,7 +805,9 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
                         parser += 7;
                         missing -= 7;
                         flog(LOG_INFO, "Buffer with padN of %d pads: %s", 7, get_hex_str(sb->buffer, sb->used));
-                } else if (missing > 1) { /** PadN with relative size */
+                }
+                else if (missing > 1)
+                { /** PadN with relative size */
                         struct nd_rpl_padn padn = {};
                         padn.option_type = 0x01;
                         padn.option_length = missing - 4;
@@ -837,20 +818,121 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
 
                         safe_buffer_append(sb, &padn, 2);
                         safe_buffer_append(sb, padn.padding, missing);
-                        parser+= missing;
+                        parser += missing;
                         missing = 0;
                         flog(LOG_INFO, "Buffer with padN of %d pads: %s", missing, get_hex_str(sb->buffer, sb->used));
-                } else if (missing == 1) { /** Pad1 */
+                }
+                else if (missing == 1)
+                { /** Pad1 */
                         struct nd_rpl_pad1 pad1 = {};
                         pad1.option_type = 0x00;
                         safe_buffer_append(sb, &pad1, 1);
                         missing = 0;
                         parser++;
                         flog(LOG_INFO, "Buffer with pad1: %s", get_hex_str(sb->buffer, sb->used));
-                } else {
+                }
+                else
+                {
                         break;
                 }
         }
+}
+
+void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
+{
+        struct nd_rpl_security dao_sec = {};
+        struct nd_rpl_dao dao = {};
+        struct safe_buffer *dao_sb = safe_buffer_new();
+
+        struct in6_prefix prefix;
+        const struct child *child;
+        const struct list *c;
+
+        int enc_pref = 0;
+        int missing = 0;
+
+        dag_build_icmp(sb, ND_RPL_SEC_DAG);
+
+        build_to_encrypt_dao(dag, dao_sb, &enc_pref, &missing);
+
+        /** Encrypt data */
+        uint8_t encrypted_dao[dao_sb->used];
+        memcpy(encrypted_dao, encrypt_dao(dao_sb->buffer, dao_sb->used), dao_sb->used);
+        flog(LOG_INFO, "DAO encrypted: %s", get_hex_str(encrypted_dao, sizeof(encrypted_dao)));
+
+        build_encrypted_dao_packet(dag, sb, dao_sb, &enc_pref, &missing);
+
+        /** Reorganize */
+        // safe_buffer_append(sb, &dao_sec, 8); /** Add DAO Sec + 1 (9 bytes) to buffer */
+        // flog(LOG_INFO, "Buffer with dao sec: %s", get_hex_str(sb->buffer, sb->used));
+
+        // u_int8_t* parser;
+        // parser = encrypted_dao;
+
+        // memcpy(&dao, parser, 4); /** Get 4+16 bytes of dao */
+        // dao.rpl_flags |= RPL_DAO_D_MASK;
+        // parser += 4;
+        // memcpy(dao.rpl_dagid.s6_addr, parser, 16); /** Get 16 bytes of dagid */
+        // parser += 16;
+        // safe_buffer_append(sb, &dao, sizeof(dao)); /** Add DAO to buffer */
+
+        // flog(LOG_INFO, "Buffer with dao: %s", get_hex_str(sb->buffer, sb->used));
+
+        // /** Add preffix to target and targets to buffer */
+        // for (int i = 0; i < enc_pref; i++) {
+        //         memcpy(&prefix.prefix, parser, 16);
+        //         flog(LOG_INFO, "preffix: %s", get_hex_str(&prefix.prefix, 16));
+        //         parser += 16;
+        //         memcpy(&prefix.len, parser, 1);
+        //         flog(LOG_INFO, "preffix len: %s", get_hex_str(&prefix.len, 1));
+        //         parser++;
+
+        //         append_target(&prefix, sb);
+        //         flog(LOG_INFO, "Append Buffer with target: %s", get_hex_str(sb->buffer, sb->used));
+        // }
+
+        // /** Add paddings */
+        // while (missing > 0) {
+        //         flog(LOG_INFO, "missing: %d", missing);
+        //         if (missing > 7) { /** PadN with max size */
+        //                 struct nd_rpl_padn padn = {};
+        //                 padn.option_type = 0x01;
+        //                 padn.option_length = 5;
+
+        //                 padn.padding = mzalloc(7);
+        //                 memcpy(padn.padding, parser, 7);
+        //                 flog(LOG_INFO, "7 pads: %s", get_hex_str(padn.padding, 7));
+
+        //                 safe_buffer_append(sb, &padn, 2);
+        //                 safe_buffer_append(sb, padn.padding, 7);
+        //                 parser += 7;
+        //                 missing -= 7;
+        //                 flog(LOG_INFO, "Buffer with padN of %d pads: %s", 7, get_hex_str(sb->buffer, sb->used));
+        //         } else if (missing > 1) { /** PadN with relative size */
+        //                 struct nd_rpl_padn padn = {};
+        //                 padn.option_type = 0x01;
+        //                 padn.option_length = missing - 4;
+
+        //                 padn.padding = mzalloc(missing);
+        //                 memcpy(padn.padding, parser, missing);
+        //                 flog(LOG_INFO, "%d pads: %s", missing, get_hex_str(padn.padding, missing));
+
+        //                 safe_buffer_append(sb, &padn, 2);
+        //                 safe_buffer_append(sb, padn.padding, missing);
+        //                 parser+= missing;
+        //                 missing = 0;
+        //                 flog(LOG_INFO, "Buffer with padN of %d pads: %s", missing, get_hex_str(sb->buffer, sb->used));
+        //         } else if (missing == 1) { /** Pad1 */
+        //                 struct nd_rpl_pad1 pad1 = {};
+        //                 pad1.option_type = 0x00;
+        //                 safe_buffer_append(sb, &pad1, 1);
+        //                 missing = 0;
+        //                 parser++;
+        //                 flog(LOG_INFO, "Buffer with pad1: %s", get_hex_str(sb->buffer, sb->used));
+        //         } else {
+        //                 break;
+        //         }
+        // }
 
         dag_daoack_insert(dag, dag->dsn);
         dao.rpl_daoseq = dag->dsn++;
@@ -896,49 +978,48 @@ void encrypt_dis(struct nd_rpl_dis *dis, struct nd_rpl_padn *padn, struct nd_rpl
 
 void dag_build_dis_sec(struct safe_buffer *sb)
 {
-    struct nd_rpl_security dis_sec = {};
-    struct nd_rpl_dis dis = {};
-    struct nd_rpl_padn padn = {};
-    struct nd_rpl_padn padn1 = {};
-    struct nd_rpl_padn padn_ = {};
+        struct nd_rpl_security dis_sec = {};
+        struct nd_rpl_dis dis = {};
+        struct nd_rpl_padn padn = {};
+        struct nd_rpl_padn padn1 = {};
+        struct nd_rpl_padn padn_ = {};
 
-    dag_build_icmp(sb, ND_RPL_SEC_DAG_IS);
+        dag_build_icmp(sb, ND_RPL_SEC_DAG_IS);
 
-    // Definir PadN com 7 bytes de padding
-    padn.option_type = 0x01;       // PadN
-    padn.option_length = 5;        // 7 bytes de padding (5 + 2)
-    padn.padding = mzalloc(7);
-    memset(padn.padding, 0, 7);
+        // Definir PadN com 7 bytes de padding
+        padn.option_type = 0x01; // PadN
+        padn.option_length = 5;  // 7 bytes de padding (5 + 2)
+        padn.padding = mzalloc(7);
+        memset(padn.padding, 0, 7);
 
-    // Definir PadN com 7 bytes de padding
-    padn1.option_type = 0x01;       // PadN
-    padn1.option_length = 5;        // 7 bytes de padding (5 + 2)
-    padn1.padding = mzalloc(7);
-    memset(padn1.padding, 0, 7);
+        // Definir PadN com 7 bytes de padding
+        padn1.option_type = 0x01; // PadN
+        padn1.option_length = 5;  // 7 bytes de padding (5 + 2)
+        padn1.padding = mzalloc(7);
+        memset(padn1.padding, 0, 7);
 
-    // Definir PadN com 6 bytes de padding
-    padn_.option_type = 0x01;       // PadN
-    padn_.option_length = 4;        // 6 bytes de padding (4 + 2)
-    padn_.padding = mzalloc(6);
-    memset(padn_.padding, 0, 6);
+        // Definir PadN com 6 bytes de padding
+        padn_.option_type = 0x01; // PadN
+        padn_.option_length = 4;  // 6 bytes de padding (4 + 2)
+        padn_.padding = mzalloc(6);
+        memset(padn_.padding, 0, 6);
 
-    uint8_t encrypted_dis[16];
-    encrypt_dis(&dis, &padn, &padn1, &padn_, encrypted_dis);
+        uint8_t encrypted_dis[16];
+        encrypt_dis(&dis, &padn, &padn1, &padn_, encrypted_dis);
 
+        safe_buffer_append(sb, &dis_sec, sizeof(dis_sec) + 1);
 
-    safe_buffer_append(sb, &dis_sec, sizeof(dis_sec) + 1);
- 
-    memcpy(&dis, encrypted_dis, 2);
-    memcpy(padn.padding, encrypted_dis + 2, padn.option_length);
-    memcpy(padn1.padding, encrypted_dis + 2 + padn.option_length, padn1.option_length);
-    memcpy(padn_.padding, encrypted_dis + 2 + padn.option_length + padn1.option_length, padn_.option_length);
+        memcpy(&dis, encrypted_dis, 2);
+        memcpy(padn.padding, encrypted_dis + 2, padn.option_length);
+        memcpy(padn1.padding, encrypted_dis + 2 + padn.option_length, padn1.option_length);
+        memcpy(padn_.padding, encrypted_dis + 2 + padn.option_length + padn1.option_length, padn_.option_length);
 
-    safe_buffer_append(sb, &dis, sizeof(dis) -1);
-    safe_buffer_append(sb, &padn, sizeof(padn.option_type) + sizeof(padn.option_length) + 5);
-    safe_buffer_append(sb, &padn1, sizeof(padn1.option_type) + sizeof(padn1.option_length) + 5);
-    safe_buffer_append(sb, &padn_, sizeof(padn_.option_type) + sizeof(padn_.option_length) + 4);
+        safe_buffer_append(sb, &dis, sizeof(dis) - 1);
+        safe_buffer_append(sb, &padn, sizeof(padn.option_type) + sizeof(padn.option_length) + 5);
+        safe_buffer_append(sb, &padn1, sizeof(padn1.option_type) + sizeof(padn1.option_length) + 5);
+        safe_buffer_append(sb, &padn_, sizeof(padn_.option_type) + sizeof(padn_.option_length) + 4);
 
-    flog(LOG_INFO, "build dis_sec");
+        flog(LOG_INFO, "build dis_sec");
 }
 
 void dag_build_pk(struct safe_buffer *sb, struct iface *iface)
@@ -984,7 +1065,7 @@ void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, int mode)
                 uint8_t coins[KYBER_SYMBYTES];
                 randombytes(coins, KYBER_SYMBYTES);
                 indcpa_enc(cipher_text, shared_secret, rec_pk, coins);
-                
+
                 // crypto_kem_enc(cipher_text, shared_secret, rec_pk);
                 log_hex("Encapsulated Shared Secret: ", shared_secret, CRYPTO_BYTES);
                 safe_buffer_append(sb, cipher_text, KYBER_CIPHERTEXTBYTES);
