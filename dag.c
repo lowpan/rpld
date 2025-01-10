@@ -745,18 +745,16 @@ void build_to_encrypt_dao(struct dag *dag, struct safe_buffer *dao_sb, int *enc_
         flog(LOG_INFO, "DAO to encrypt: %s", get_hex_str(dao_sb->buffer, dao_sb->used));
 }
 
-void build_encrypted_dao_packet(struct dag *dag, struct safe_buffer *sb, struct safe_buffer *dao_sb, int *enc_pref, int *aux_missing)
+void build_encrypted_dao_packet(struct dag *dag, struct safe_buffer *sb, u_int8_t* encrypted_dao, int *enc_pref, int *aux_missing)
 {
-        uint8_t encrypted_dao[dao_sb->used];
         struct nd_rpl_security dao_sec = {};
         struct nd_rpl_dao dao = {};
-        struct safe_buffer *dao_sb = safe_buffer_new();
 
         struct in6_prefix prefix;
         const struct child *child;
         const struct list *c;
 
-        safe_buffer_append(sb, &dao_sec, 8); /** Add DAO Sec + 1 (9 bytes) to buffer */
+        safe_buffer_append(sb, &dao_sec, sizeof(dao_sec) + 1); /** Add DAO Sec + 1 (9 bytes) to buffer */
         flog(LOG_INFO, "Buffer with dao sec: %s", get_hex_str(sb->buffer, sb->used));
 
         u_int8_t *parser;
@@ -790,21 +788,21 @@ void build_encrypted_dao_packet(struct dag *dag, struct safe_buffer *sb, struct 
         while (missing > 0)
         {
                 flog(LOG_INFO, "missing: %d", missing);
-                if (missing > 7)
+                if (missing > 5)
                 { /** PadN with max size */
                         struct nd_rpl_padn padn = {};
                         padn.option_type = 0x01;
                         padn.option_length = 5;
 
-                        padn.padding = mzalloc(7);
-                        memcpy(padn.padding, parser, 7);
-                        flog(LOG_INFO, "7 pads: %s", get_hex_str(padn.padding, 7));
+                        padn.padding = mzalloc(5);
+                        memcpy(padn.padding, parser, 5);
+                        flog(LOG_INFO, "5 pads: %s", get_hex_str(padn.padding, 5));
 
                         safe_buffer_append(sb, &padn, 2);
-                        safe_buffer_append(sb, padn.padding, 7);
-                        parser += 7;
-                        missing -= 7;
-                        flog(LOG_INFO, "Buffer with padN of %d pads: %s", 7, get_hex_str(sb->buffer, sb->used));
+                        safe_buffer_append(sb, padn.padding, 5);
+                        parser += 5;
+                        missing -= 5;
+                        flog(LOG_INFO, "Buffer with padN of %d pads: %s", 5, get_hex_str(sb->buffer, sb->used));
                 }
                 else if (missing > 1)
                 { /** PadN with relative size */
@@ -861,7 +859,7 @@ void dag_build_dao_sec(struct dag *dag, struct safe_buffer *sb)
         flog(LOG_INFO, "DAO encrypted: %s", get_hex_str(encrypted_dao, sizeof(encrypted_dao)));
 
         /** Reorganize */
-        build_encrypted_dao_packet(dag, sb, dao_sb, &enc_pref, &missing);
+        build_encrypted_dao_packet(dag, sb, encrypted_dao, &enc_pref, &missing);
 
 
         dag_daoack_insert(dag, dag->dsn);
