@@ -116,5 +116,7 @@ struct child *dag_lookup_child_or_create(struct dag *dag,
 										 const struct in6_addr *addr,
 										 const struct in6_addr *from);
 bool dag_is_peer(const struct peer *peer, const struct in6_addr *addr);
+int append_target(const struct in6_prefix *prefix,
+                         struct safe_buffer *sb);
 
 #endif /* __RPLD_DAG_H__ */

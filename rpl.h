@@ -68,7 +68,7 @@ struct nd_rpl_padn
 
 struct nd_rpl_pad1
 {
-    uint8_t option_type;   // 0x00 for Pad1
+    u_int8_t option_type;   // 0x00 for Pad1
 } PACKED;
 
 #ifndef RPL_SEC_H
