@@ -291,7 +291,7 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 
 	if (len < sizeof(*dao))
 	{
-		flog(LOG_INFO, "dao length mismatch, drop");
+		flog(LOG_INFO, "Dao length mismatch, drop");
 		return;
 	}
 	len -= sizeof(*dao);
@@ -311,7 +311,6 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 	p = msg;
 	p += sizeof(*dao);
 	optlen = len;
-	// flog(LOG_INFO, "dao optlen %d", optlen);
 	while (optlen > 0)
 	{
 		opt = (const struct nd_rpl_opt *)p;
@@ -322,7 +321,6 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 			return;
 		}
 
-		// flog(LOG_INFO, "dao opt %d", opt->type);
 		switch (opt->type)
 		{
 		case RPL_DAO_RPLTARGET:
@@ -334,7 +332,6 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 			}
 
 			addrtostr(&target->rpl_dao_prefix, addr_str, sizeof(addr_str));
-			flog(LOG_INFO, "dao target %s", addr_str);
 			dag_lookup_child_or_create(dag,
 									   &target->rpl_dao_prefix,
 									   &addr->sin6_addr);
@@ -347,7 +344,6 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 		/* TODO critical, we trust opt->len here... which is wire data */
 		optlen -= (2 + opt->len);
 		p += (2 + opt->len);
-		// flog(LOG_INFO, "dao optlen %d", optlen);
 	}
 
 	DL_FOREACH(dag->childs.head, c)
@@ -361,7 +357,6 @@ static void process_dao(int sock, struct iface *iface, const void *msg,
 		flog(LOG_INFO, "via route %d %s %s", rc, strerror(errno), child_addr_str);
 	}
 
-	// flog(LOG_INFO, "process dao %s", addr_str);
 	send_dao_ack(sock, &addr->sin6_addr, dag);
 }
 
@@ -373,7 +368,6 @@ u_int8_t *decrypt_dao_sec(u_int8_t *buf_to_dec, size_t len)
 	AES_init_ctx(&ctx, aes_key);
 
 	int rounds = len / 16;
-	flog(LOG_INFO, "decryption rounds: %d", rounds);
 	u_int8_t *decrypted_data = mzalloc(len);
 	u_int8_t data_pack_to_decrypt[16];
 	for (int i = 0; i < rounds; i++)
@@ -389,27 +383,31 @@ u_int8_t *decrypt_dao_sec(u_int8_t *buf_to_dec, size_t len)
 	return decrypted_data;
 }
 
+/**
+ * @brief This function will append in a buffer the bytes that are meant to be decrypted
+ * 
+ * @param msg The packet received
+ * @param len The packet length
+ * @param sb_to_decrypt Output: Buffer to storage the bytes to be decrypted
+ * @param enc_pref Output: Number of targets to be decrypted
+ * @param missing Output: Number of paddings to be decrypted
+ */
 void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to_decrypt, int *enc_pref, int *missing)
 {
 	u_int8_t const *parser = (u_int8_t const *)msg;
-	// flog(LOG_INFO, "Start Parse and Decrypt DAO. Parser: %s", get_hex_str(parser, len));
 
 	parser += sizeof(struct nd_rpl_security) + 1; /** Move to start of DAO */
 	len -= sizeof(struct nd_rpl_security) + 1;
 	flog(LOG_INFO, "Moved rpld security. Parser: %s", get_hex_str(parser, len));
 
 	struct nd_rpl_dao *dao = (const struct nd_rpl_dao *)parser;
-	// dao->rpl_flags |= RPL_DAO_D_MASK;
 	safe_buffer_append(sb_to_decrypt, &dao->rpl_instanceid, 1);
 	safe_buffer_append(sb_to_decrypt, &dao->rpl_resv, 1);
 	safe_buffer_append(sb_to_decrypt, &dao->rpl_daoseq, 1);
 	safe_buffer_append(sb_to_decrypt, &dao->rpl_dagid, 16);
-	// safe_buffer_append(sb_to_decrypt, dao, 20);
-	flog(LOG_INFO, "Append DAO To Decrypt Buffer with target: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 
 	parser += 20;
 	len -= 20;
-	flog(LOG_INFO, "Moved DAO. Parser: %s", get_hex_str(parser, len));
 
 	int optlen = len;
 	const struct nd_rpl_opt *opt;
@@ -419,15 +417,13 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 	while (optlen > 0)
 	{
 		opt = (const struct nd_rpl_opt *)parser;
-		flog(LOG_INFO, "DAO opt %s, type %d, len %d", get_hex_str(opt, sizeof(struct nd_rpl_opt)), opt->type, opt->len);
 
 		if (optlen == 1)
-		{
+		{ /** Pad1 */
 			pad1 = (const struct nd_rpl_pad1 *)parser;
 			safe_buffer_append(sb_to_decrypt, pad1, 1);
 			*missing += 1;
 
-			flog(LOG_INFO, "Append To Decrypt Pad1: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 			parser += 1;
 			optlen -= 1;
 		}
@@ -437,38 +433,36 @@ void built_to_decrypt_dao(const void *msg, size_t len, struct safe_buffer *sb_to
 			{
 			case RPL_DAO_RPLTARGET:
 				target = (const struct rpl_dao_target *)parser;
-				flog(LOG_INFO, "Target: %s", get_hex_str(target, 20));
 
 				safe_buffer_append(sb_to_decrypt, &target->rpl_dao_prefix, 16);
-				flog(LOG_INFO, "Append To Decrypt Target Prefix: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 				safe_buffer_append(sb_to_decrypt, &target->rpl_dao_prefixlen, 1);
-				flog(LOG_INFO, "Append To Decrypt Target Prefix Length: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 				*enc_pref += 1;
-				flog(LOG_INFO, "Entered RPL_DAO_RPLTARGET. enc_pref: %d", *enc_pref);
-				// parser += 20;
-				// optlen -= 20;
 				break;
 			case RPL_OPT_PADN:
 				padn = (const struct nd_rpl_padn *)parser;
 				safe_buffer_append(sb_to_decrypt, &padn->padding, padn->option_length);
 				*missing += padn->option_length;
-
-				flog(LOG_INFO, "Append To Decrypt PadN: %s", get_hex_str(sb_to_decrypt->buffer, sb_to_decrypt->used));
 				break;
 			default:
 				/* IGNORE NOT SUPPORTED */
 				break;
 			}
 			parser += (2 + opt->len);
-			flog(LOG_INFO, "opt->len before: %d", opt->len);
 			optlen -= (2 + opt->len);
-			flog(LOG_INFO, "opt->len after: %d", opt->len);
 		}
-
-		// flog(LOG_INFO, "dao optlen %d", optlen);
 	}
 }
 
+/**
+ * @brief This function will build the decrypted DAO packet with the decrypted data
+ * This is done by parsing the decrypted bytes. The first are know to be of the DAO
+ * The next bytes are enc_pref numbers of targets and aux_missing number of paddings
+ * 
+ * @param sb Output: The packet formed with the decrypted data
+ * @param decrypted_dao Input: Array with decrypted data
+ * @param enc_pref Input: Number of targets decrypted
+ * @param aux_missing Input: Number of 0s decrypted
+ */
 void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_dao, int *enc_pref, int *aux_missing)
 {
 	struct nd_rpl_security dao_sec = {};
@@ -479,11 +473,11 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_da
 	const struct list *c;
 
 	safe_buffer_append(sb, &dao_sec, sizeof(dao_sec) + 1); /** Add DAO Sec + 1 (9 bytes) to buffer */
-	// flog(LOG_INFO, "Buffer with dao sec: %s", get_hex_str(sb->buffer, sb->used));
 
 	u_int8_t const *parser = (u_int8_t const *)decrypted_dao;
 
-	dao.rpl_instanceid = parser[0]; /** Get 4+16 bytes of dao */
+	/** Build the DAO */
+	dao.rpl_instanceid = parser[0];
 	parser++;
 	dao.rpl_flags |= RPL_DAO_D_MASK;
 	dao.rpl_resv = parser[0];
@@ -494,29 +488,21 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_da
 	parser += 16;
 	safe_buffer_append(sb, &dao, sizeof(dao)); /** Add DAO to buffer */
 
-	flog(LOG_INFO, "Buffer with dao: %s", get_hex_str(sb->buffer, sb->used));
-
-	flog(LOG_INFO, "enc_pref: %d", *enc_pref);
-	/** Add preffix to target and targets to buffer */
+	/** Add prefix to target and targets to buffer */
 	for (int i = 0; i < *enc_pref; i++)
 	{
-		flog(LOG_INFO, "Next 20 bytes of parser: %s", get_hex_str(parser, 20));
 		memcpy(&prefix.prefix, parser, 16);
-		flog(LOG_INFO, "preffix: %s", get_hex_str(&prefix.prefix, 16));
 		parser += 16;
 		memcpy(&prefix.len, parser, 1);
-		flog(LOG_INFO, "preffix len: %s", get_hex_str(&prefix.len, 1));
 		parser += 1;
 
 		append_target(&prefix, sb);
-		flog(LOG_INFO, "Append Buffer with target: %s", get_hex_str(sb->buffer, sb->used));
 	}
 
 	/** Add paddings */
 	int missing = *aux_missing;
 	while (missing > 0)
 	{
-		// flog(LOG_INFO, "missing: %d", missing);
 		if (missing > 5)
 		{ /** PadN with max size */
 			struct nd_rpl_padn padn = {};
@@ -525,13 +511,11 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_da
 
 			padn.padding = mzalloc(5);
 			memcpy(padn.padding, parser, 5);
-			// flog(LOG_INFO, "5 pads: %s", get_hex_str(padn.padding, 5));
 
 			safe_buffer_append(sb, &padn, 2);
 			safe_buffer_append(sb, padn.padding, 5);
 			parser += 5;
 			missing -= 5;
-			// flog(LOG_INFO, "Buffer with padN of %d pads: %s", 5, get_hex_str(sb->buffer, sb->used));
 		}
 		else if (missing > 1)
 		{ /** PadN with relative size */
@@ -541,13 +525,11 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_da
 
 			padn.padding = mzalloc(missing);
 			memcpy(padn.padding, parser, missing);
-			// flog(LOG_INFO, "%d pads: %s", missing, get_hex_str(padn.padding, missing));
 
 			safe_buffer_append(sb, &padn, 2);
 			safe_buffer_append(sb, padn.padding, missing);
 			parser += missing;
 			missing = 0;
-			// flog(LOG_INFO, "Buffer with padN of %d pads: %s", missing, get_hex_str(sb->buffer, sb->used));
 		}
 		else if (missing == 1)
 		{ /** Pad1 */
@@ -556,7 +538,6 @@ void build_decrypted_dao_packet(struct safe_buffer *sb, void const *decrypted_da
 			safe_buffer_append(sb, &pad1, 1);
 			missing = 0;
 			parser++;
-			// flog(LOG_INFO, "Buffer with pad1: %s", get_hex_str(sb->buffer, sb->used));
 		}
 		else
 		{
@@ -577,7 +558,6 @@ void parse_and_decrypt_dao_sec(const void *msg, size_t len, u_int8_t **out_decry
 
 	uint8_t decrypted_dao[sb_to_decrypt->used];
 	memcpy(decrypted_dao, decrypt_dao_sec(sb_to_decrypt->buffer, sb_to_decrypt->used), sb_to_decrypt->used);
-	flog(LOG_INFO, "DAO decrypted: %s", get_hex_str(decrypted_dao, sizeof(decrypted_dao)));
 
 	build_decrypted_dao_packet(sb_decrypted_msg, decrypted_dao, &enc_pref, &missing);
 
@@ -588,17 +568,18 @@ void parse_and_decrypt_dao_sec(const void *msg, size_t len, u_int8_t **out_decry
 static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 							size_t len, struct sockaddr_in6 *addr)
 {
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Received Dao Sec from %s", addr_str);
+
 	u_int8_t *out_decrypted_dao;
 	size_t out_decrypted_len;
 
-	flog(LOG_INFO, "dao_sec before decryption %s", get_hex_str(msg, len));
 	parse_and_decrypt_dao_sec(msg, len, &out_decrypted_dao, &out_decrypted_len);
-	flog(LOG_INFO, "dao_sec after decryption %s", get_hex_str(out_decrypted_dao, out_decrypted_len));
 
 	const struct nd_rpl_security *dao_sec = (const struct nd_rpl_security *)out_decrypted_dao;
 	const struct nd_rpl_dao *dao = (const struct nd_rpl_dao *)(out_decrypted_dao + sizeof(struct nd_rpl_security) + 1);
 	const struct rpl_dao_target *target;
-	char addr_str[INET6_ADDRSTRLEN];
 	const struct nd_rpl_opt *opt;
 	const unsigned char *p;
 	struct child *child;
@@ -614,12 +595,6 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 	}
 	len -= sizeof(*dao);
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "Received Sec Dao from %s", addr_str);
-
-	char dagid_str[INET6_ADDRSTRLEN];
-	addrtostr(&dao->rpl_dagid, dagid_str, sizeof(addr_str));
-	flog(LOG_INFO, "Dag lookup for iface: %s, rpl_instanceid: %d, rpld_dagid: %s", iface->ifname, dao->rpl_instanceid, dagid_str);
 
 	dag = dag_lookup(iface, dao->rpl_instanceid,
 					 &dao->rpl_dagid);
@@ -693,15 +668,17 @@ static void process_dao_sec(int sock, struct iface *iface, const void *msg,
 		flog(LOG_INFO, "via route %d %s %s", rc, strerror(errno), child_addr_str);
 	}
 
-	flog(LOG_INFO, "process dao_sec %s", addr_str);
 	send_dao_ack_sec(sock, &addr->sin6_addr, dag);
 }
 
 static void process_daoack(int sock, struct iface *iface, const void *msg,
 						   size_t len, struct sockaddr_in6 *addr)
 {
-	const struct nd_rpl_daoack *daoack = msg;
 	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Received Dao Ack from %s", addr_str);
+
+	const struct nd_rpl_daoack *daoack = msg;
 	struct dag *dag;
 	int rc;
 
@@ -711,8 +688,6 @@ static void process_daoack(int sock, struct iface *iface, const void *msg,
 		return;
 	}
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "Received Dao Ack from %s", addr_str);
 
 	dag = dag_lookup(iface, daoack->rpl_instanceid,
 					 &daoack->rpl_dagid);
@@ -734,7 +709,6 @@ static void process_daoack(int sock, struct iface *iface, const void *msg,
 
 void decrypt_daoack_sec(const void *msg, uint8_t *decrypted_data)
 {
-	// flog(LOG_INFO, "decrypt_daoack_sec");
 	uint8_t encrypted_data[32];
 	memcpy(encrypted_data, msg + 9, 1);
 	memcpy(encrypted_data + 1, msg + 11, 2);
@@ -745,15 +719,12 @@ void decrypt_daoack_sec(const void *msg, uint8_t *decrypted_data)
 
 	const uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
-	// flog(LOG_INFO, "decrypt_daoack_sec AES key: %s", get_hex_str(aes_key, 16));
 
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
 
-	// flog(LOG_INFO, "DAOACK to decrypt %s", get_hex_str(encrypted_data, 32));
 	AES_ECB_decrypt(&ctx, encrypted_data);
 	AES_ECB_decrypt(&ctx, encrypted_data + 16);
-	// flog(LOG_INFO, "DAOACK decrypted %s", get_hex_str(encrypted_data, 32));
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
 }
@@ -761,9 +732,12 @@ void decrypt_daoack_sec(const void *msg, uint8_t *decrypted_data)
 static void process_daoack_sec(int sock, struct iface *iface, const void *msg,
 							   size_t len, struct sockaddr_in6 *addr)
 {
+	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Received Sec Dao Ack from %s", addr_str);
+
 	const struct nd_rpl_security *daoack_sec = (const struct nd_rpl_security *)msg;
 	const struct nd_rpl_daoack *daoack = (const struct nd_rpl_daoack *)(msg + sizeof(struct nd_rpl_security) + 1);
-	char addr_str[INET6_ADDRSTRLEN];
 	struct dag *dag;
 	int rc;
 
@@ -784,8 +758,6 @@ static void process_daoack_sec(int sock, struct iface *iface, const void *msg,
 		return;
 	}
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "Received Sec Dao Ack from %s", addr_str);
 	dag = dag_lookup(iface, daoack->rpl_instanceid,
 					 &daoack->rpl_dagid);
 	if (!dag)
@@ -808,12 +780,13 @@ static void process_dis(int sock, struct iface *iface, void *msg,
 						size_t len, struct sockaddr_in6 *addr)
 {
 	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Received Dis from %s", addr_str);
+
 	struct list *r, *d;
 	struct rpl *rpl;
 	struct dag *dag;
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "Received Dis from %s", addr_str);
 
 	DL_FOREACH(iface->rpls.head, r)
 	{
@@ -829,7 +802,6 @@ static void process_dis(int sock, struct iface *iface, void *msg,
 
 void decrypt_dis_sec(void *msg, uint8_t *decrypted_data)
 {
-	// flog(LOG_INFO, "decrypt_dis_sec");
 	uint8_t encrypted_data[16];
 	memcpy(encrypted_data, msg + 9, 2);
 	memcpy(encrypted_data + 2, msg + 13, 5);
@@ -838,14 +810,11 @@ void decrypt_dis_sec(void *msg, uint8_t *decrypted_data)
 
 	const uint8_t aes_key[16];
 	memcpy(aes_key, shared_secret, 16);
-	flog(LOG_INFO, "decrypt_dis_sec AES key: %s", get_hex_str(aes_key, 16));
 
 	struct AES_ctx ctx;
 	AES_init_ctx(&ctx, aes_key);
 
-	// flog(LOG_INFO, "DIS to decrypt %s", get_hex_str(encrypted_data, 16));
 	AES_ECB_decrypt(&ctx, encrypted_data);
-	flog(LOG_INFO, "DIS decrypted %s", get_hex_str(encrypted_data, 16));
 
 	memcpy(decrypted_data, encrypted_data, sizeof(encrypted_data));
 }
@@ -854,6 +823,9 @@ static void process_dis_sec(int sock, struct iface *iface, void *msg,
 							size_t len, struct sockaddr_in6 *addr)
 {
 	char addr_str[INET6_ADDRSTRLEN];
+	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
+	flog(LOG_INFO, "Received Sec Dis from %s", addr_str);
+
 	struct list *r, *d;
 	struct rpl *rpl;
 	struct dag *dag;
@@ -866,8 +838,6 @@ static void process_dis_sec(int sock, struct iface *iface, void *msg,
 	memcpy(msg + 20, decrypted_dis + 7, 5);
 	memcpy(msg + 27, decrypted_dis + 12, 4);
 
-	addrtostr(&addr->sin6_addr, addr_str, sizeof(addr_str));
-	flog(LOG_INFO, "Received Sec Dis from %s", addr_str);
 
 	DL_FOREACH(iface->rpls.head, r)
 	{
@@ -927,7 +897,7 @@ static void process_pk_sec_exch(int sock, struct iface *iface, const void *msg, 
  */
 static void process_ct_sec_exch(const void *msg, struct iface *iface)
 {
-	flog(LOG_INFO, "process_ct_sec_exch");
+	flog(LOG_INFO, "Processe Cipher Text Packet");
 	if (iface->enc_mode == ENC_MODE_RSA)
 	{
 		long long *cipher_text;
