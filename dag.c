@@ -736,7 +736,7 @@ void build_encrypted_dao_packet(struct safe_buffer *sb, u_int8_t *encrypted_dao,
                         parser += 5;
                         missing -= 5;
                 }
-                else if (missing > 1)
+                else if (missing > 0)
                 { /** PadN with relative size */
                         struct nd_rpl_padn padn = {};
                         padn.option_type = 0x01;
@@ -749,14 +749,6 @@ void build_encrypted_dao_packet(struct safe_buffer *sb, u_int8_t *encrypted_dao,
                         safe_buffer_append(sb, padn.padding, missing);
                         parser += missing;
                         missing = 0;
-                }
-                else if (missing == 1)
-                { /** Pad1 */
-                        struct nd_rpl_pad1 pad1 = {};
-                        memcpy(&pad1.option_type, parser, 1);
-                        safe_buffer_append(sb, &pad1, 1);
-                        missing = 0;
-                        parser++;
                 }
                 else
                 {
