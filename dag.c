@@ -27,6 +27,7 @@
 #include "dag.h"
 #include "config.h"
 #include "crypto/aes/tiny-AES-c-master/aes.h"
+#include "key_map.c"
 
 #include "crypto/kyber/ref/kem.h"
 #include "crypto/kyber/ref/indcpa.h"
@@ -882,25 +883,27 @@ void dag_build_pk(struct safe_buffer *sb, struct iface *iface)
         }
 }
 
-void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, int mode)
+void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, struct iface *iface, char* addr_to)
 {
         dag_build_icmp(sb, ND_RPL_SEC_CT_EXCH);
 
         /** Shared secret with 32 bytes for Kyber and RSA2048.
          * For RSA1024, the shared secret it will be truncated, so can be the same as 2048.
          */
-        const char *ss = "89E9D140FD7371107BBEBCF61E4390C5";
-        if (mode == ENC_MODE_RSA)
+        const u_int8_t* ss = "89E9D140FD7371117BBEBCF61E4390C5";
+        // const u_int8_t* ss = gen_rdm_bytestream(32);
+        // flog(LOG_INFO, "ss: %s", get_hex_str(ss, 32));
+        if (iface->enc_mode == ENC_MODE_RSA)
         {
                 memcpy(shared_secret, ss, RSA_SS_SIZE_BYTES);
 
                 struct key_class rec_pk_class;
                 uint8_to_key_class(rec_pk, &rec_pk_class);
-                const long long *encrypted_ss = rsa_encrypt(ss, RSA_SS_SIZE_BYTES, &rec_pk_class);
+                const long long *encrypted_ss = rsa_encrypt(shared_secret, RSA_SS_SIZE_BYTES, &rec_pk_class);
 
                 safe_buffer_append(sb, encrypted_ss, RSA_CIPHERTEXT_SIZE_BYTES);
         }
-        else if (mode == ENC_MODE_KYBER)
+        else if (iface->enc_mode == ENC_MODE_KYBER)
         {
                 memcpy(shared_secret, ss, KYBER_SSBYTES);
 
@@ -911,4 +914,9 @@ void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, int mode)
 
                 safe_buffer_append(sb, cipher_text, KYBER_CIPHERTEXTBYTES);
         }
+
+        key_map_init(&iface->key_map);
+        key_map_insert(&iface->key_map, addr_to, ss, KEY_SIZE);
+        key_map_print(&iface->key_map);
+        flog(LOG_INFO, "Valor armazenado: %s", get_hex_str(key_map_get(&iface->key_map, addr_to), KEY_SIZE));
 }

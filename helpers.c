@@ -16,6 +16,8 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <time.h>
 
 #include "helpers.h"
 #include "config.h"
@@ -43,28 +45,54 @@ int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_
 
 char *get_hex_str(const u_int8_t *data, size_t len)
 {
-    // Calculate the required size: "Length: " + number + ": " + hex values + null terminator
-    size_t result_len = 8 + 20 + (len * 2) + 1; // 8 for "Length: ", 20 for length number, 2 chars per byte, 1 for '\0'
+	// Calculate the required size: "Length: " + number + ": " + hex values + null terminator
+	size_t result_len = 8 + 20 + (len * 2) + 1; // 8 for "Length: ", 20 for length number, 2 chars per byte, 1 for '\0'
 
-    // Allocate memory for the result string
-    char *result = malloc(result_len);
-    if (!result)
-    {
-        return NULL; // Handle memory allocation failure
-    }
+	// Allocate memory for the result string
+	char *result = malloc(result_len);
+	if (!result)
+	{
+		return NULL; // Handle memory allocation failure
+	}
 
-    // Write the length into the result string
-    snprintf(result, result_len, "Length: %lu: ", len);
+	// Write the length into the result string
+	snprintf(result, result_len, "Length: %lu: ", len);
 
-    // Append hex values
-    char *ptr = result + strlen(result); // Move pointer to the end of the current string
-    for (size_t i = 0; i < len; i++)
-    {
-        snprintf(ptr, 3, "%02X", data[i]); // Write 2 hex chars
-        ptr += 2;                          // Advance by 2 characters
-    }
+	// Append hex values
+	char *ptr = result + strlen(result); // Move pointer to the end of the current string
+	for (size_t i = 0; i < len; i++)
+	{
+		snprintf(ptr, 3, "%02X", data[i]); // Write 2 hex chars
+		ptr += 2;						   // Advance by 2 characters
+	}
 
-    return result;
+	return result;
+}
+
+
+u_int8_t *gen_rdm_bytestream(size_t num_bytes)
+{
+	srand(time(NULL));
+	u_int8_t *stream = malloc(num_bytes);
+	size_t i;
+
+	for (i = 0; i < num_bytes; i++)
+	{
+		stream[i] = (char)rand();
+	}
+	return stream;
+}
+
+int getIndex(char key[], struct key_map map)
+{
+	for (int i = 0; i < map.size; i++)
+	{
+		if (strcmp(map.key[i], key) == 0)
+		{
+			return i;
+		}
+	}
+	return -1; // Key not found
 }
 
 /** This function receives as input a public_key_class

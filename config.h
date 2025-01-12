@@ -21,6 +21,7 @@
 
 #include "dag.h"
 #include "list.h"
+#include "key_map.h"
 
 #define MAX_RPL_INSTANCEID      UINT8_MAX
 #define DEFAULT_TICKLE_T        5
@@ -51,6 +52,7 @@ struct iface {
         u_int8_t *shared_secret;
         u_int8_t *public_key;
         u_int8_t *secret_key;
+        struct key_map key_map;
 
         struct in6_addr ifaddr;
         struct in6_addr *ifaddrs;

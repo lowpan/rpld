@@ -69,8 +69,8 @@ static inline uint8_t bits_to_bytes(uint8_t bits)
 }
 
 char *get_hex_str(const u_int8_t *data, size_t len);
-
 int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_size);
+u_int8_t *gen_rdm_bytestream(size_t num_bytes);
 
 void key_class_to_uint8(struct key_class key_class, u_int8_t *key_array);
 void uint8_to_key_class(const u_int8_t *key_array, struct key_class *key_class);

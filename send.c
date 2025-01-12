@@ -238,10 +238,11 @@ void send_ct(int sock, const struct in6_addr *to, struct iface *iface, u_int8_t 
 	if (!sb)
 		return;
 
-	dag_build_ct(sb, rec_pk, iface->enc_mode);
-	rc = really_send(sock, iface, to, sb);
-
 	char addr_str[INET6_ADDRSTRLEN];
 	addrtostr(to, addr_str, sizeof(addr_str));
+
+	dag_build_ct(sb, rec_pk, iface, addr_str);
+	rc = really_send(sock, iface, to, sb);
+
 	flog(LOG_INFO, "Sent CT to: %s", addr_str);
 }
