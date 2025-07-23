@@ -23,7 +23,7 @@
 #include "config.h"
 #include "log.h"
 
-int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_size)
+int hex_to_bytes_len(const char *hex_string, uint8_t *byte_array, size_t byte_array_size)
 {
 	for (size_t i = 0; i < byte_array_size; i++)
 	{
@@ -41,6 +41,37 @@ int hex_to_bytes(const char *hex_string, uint8_t *byte_array, size_t byte_array_
 								  strtol((char[]){low_nibble, '\0'}, NULL, 16));
 	}
 	return 0;
+}
+
+/**
+ * @brief Convert a hex string to a byte array.
+ * 
+ * @param hex_str Hexadecimal string to convert, must have an even length.
+ * @param bytes_out Pointer to the output byte array, which will be allocated.
+ * @return int Hex string length in bytes, or -1 on error.
+ */
+int hex_to_bytes(const char* hex_str, u_int8_t** bytes_out) {
+    size_t hex_len = strlen(hex_str);
+    if (hex_len % 2 != 0) {
+		flog(LOG_ERR, "hex_to_bytes: invalid length of hex string");
+        return -1;
+    }
+
+    size_t bytes_len = hex_len / 2;
+    *bytes_out = (u_int8_t*)malloc(bytes_len);
+    if (*bytes_out == NULL) {
+		flog(LOG_ERR, "hex_to_bytes: memory allocation failed for bytes_out");
+        return -1;
+    }
+
+    for (size_t i = 0; i < bytes_len; i++) {
+        if (sscanf(hex_str + (i * 2), "%2hhx", &(*bytes_out)[i]) != 1) {
+			flog(LOG_ERR, "hex_to_bytes: invalid character in hex string");
+            free(*bytes_out);
+            return -1;
+        }
+    }
+    return (int)bytes_len;
 }
 
 char *get_hex_str(const u_int8_t *data, size_t len)

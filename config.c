@@ -299,46 +299,8 @@ static int config_load_instances(lua_State *L, struct iface *iface)
         return 0;
 }
 
-void parse_and_set_key(const char *aux_public_key, struct key_class *key)
-{
-        char *token;
-        char *input_copy = strdup(aux_public_key); // Create a modifiable copy of the string
-        if (!input_copy)
-        {
-                fprintf(stderr, "Memory allocation failed\n");
-                return;
-        }
-
-        // Extract the modulus (first number)
-        token = strtok(input_copy, ",");
-        if (token)
-        {
-                key->modulus = atoll(token); // Convert to long long
-        }
-        else
-        {
-                fprintf(stderr, "Error parsing modulus\n");
-                free(input_copy);
-                return;
-        }
-
-        // Extract the exponent (second number)
-        token = strtok(NULL, ",");
-        if (token)
-        {
-                key->exponent = atoll(token); // Convert to long long
-        }
-        else
-        {
-                fprintf(stderr, "Error parsing exponent\n");
-                free(input_copy);
-                return;
-        }
-
-        free(input_copy); // Clean up the allocated memory
-}
-
-/** Parse the encryption parameters in the config file, if any
+/** 
+ * @brief Parse the encryption parameters in the config file, if any
  * If it is to configure a encryption, it must have the enc_mode field with 1 or 2
  * See encryption modes in config.h
  */
@@ -376,11 +338,12 @@ static int config_encryption(lua_State *L, struct iface *iface)
                         if (lua_isnil(L, -1))
                         {
                                 /** If the public key hasn't been passed, generate it and the private key */
+                                flog(LOG_DEBUG, "RSA PK not found");
                                 struct key_class public_key;
                                 struct key_class secret_key;
                                 rsa_gen_keys(&public_key, &secret_key, "primes.txt");
-                                iface->public_key = mzalloc(RSA_KEY_SIZE_BYTES);
-                                iface->secret_key = mzalloc(RSA_KEY_SIZE_BYTES);
+                                iface->public_key = mzalloc(RSA_OSSL_PK_SIZE_BYTES);
+                                iface->secret_key = mzalloc(RSA_OSSL_PK_SIZE_BYTES);
                                 key_class_to_uint8(public_key, iface->public_key);
                                 key_class_to_uint8(secret_key, iface->secret_key);
                                 lua_pop(L, 1);
@@ -388,13 +351,25 @@ static int config_encryption(lua_State *L, struct iface *iface)
                         }
                         else
                         {
+                                flog(LOG_DEBUG, "RSA PK found");
                                 char *aux_public_key;
                                 aux_public_key = lua_tostring(L, -1);
+                                
+                                u_int8_t *public_key_bytes;
+                                int public_key_bytes_len = hex_to_bytes(aux_public_key, &public_key_bytes);
+                                if (public_key_bytes_len < 0) {
+                                        flog(LOG_ERR, "Failed to parse public key");
+                                        return -1;
+                                }
+                                if (RSA_OSSL_PK_SIZE_BYTES != public_key_bytes_len) {
+                                        flog(LOG_ERR, "Number of PK bytes is different than defined");
+                                        return -1;
+                                }
 
-                                struct key_class public_key;
-                                parse_and_set_key(aux_public_key, &public_key);
-                                iface->public_key = mzalloc(RSA_KEY_SIZE_BYTES);
-                                key_class_to_uint8(public_key, iface->public_key);
+                                iface->public_key = mzalloc(public_key_bytes_len);
+                                iface->public_key = public_key_bytes;
+
+                                flog(LOG_DEBUG, "Sucessfully parsed RSA PK: %s", get_hex_str(iface->public_key, RSA_OSSL_PK_SIZE_BYTES));
                         }
                         lua_pop(L, 1);
 
@@ -402,11 +377,12 @@ static int config_encryption(lua_State *L, struct iface *iface)
                         if (lua_isnil(L, -1))
                         {
                                 /** If the secret key hasn't been passed, generate it and the public key  */
+                                flog(LOG_DEBUG, "RSA SK not found");
                                 struct key_class public_key;
                                 struct key_class secret_key;
                                 rsa_gen_keys(&public_key, &secret_key, "primes.txt");
-                                iface->public_key = mzalloc(RSA_KEY_SIZE_BYTES);
-                                iface->secret_key = mzalloc(RSA_KEY_SIZE_BYTES);
+                                iface->public_key = mzalloc(RSA_OSSL_PK_SIZE_BYTES);
+                                iface->secret_key = mzalloc(RSA_OSSL_PK_SIZE_BYTES);
                                 key_class_to_uint8(public_key, iface->public_key);
                                 key_class_to_uint8(secret_key, iface->secret_key);
                                 lua_pop(L, 1);
@@ -414,13 +390,21 @@ static int config_encryption(lua_State *L, struct iface *iface)
                         }
                         else
                         {
+                                flog(LOG_DEBUG, "RSA SK found");
                                 char *aux_secret_key;
                                 aux_secret_key = lua_tostring(L, -1);
 
-                                struct key_class secret_key;
-                                parse_and_set_key(aux_secret_key, &secret_key);
-                                iface->secret_key = mzalloc(RSA_KEY_SIZE_BYTES);
-                                key_class_to_uint8(secret_key, iface->secret_key);
+                                u_int8_t *secret_key_bytes;
+                                int secret_key_bytes_len = hex_to_bytes(aux_secret_key, &secret_key_bytes);
+                                if (secret_key_bytes_len < 0) {
+                                        flog(LOG_ERR, "Failed to parse secret key");
+                                        return -1;
+                                }
+
+                                iface->secret_key = mzalloc(secret_key_bytes_len);
+                                iface->secret_key = secret_key_bytes;
+                                flog(LOG_DEBUG, "Sucessfully parsed RSA SK: %s", 
+                                get_hex_str(iface->secret_key, secret_key_bytes_len));
                         }
                         lua_pop(L, 1);
                 }
@@ -446,7 +430,7 @@ static int config_encryption(lua_State *L, struct iface *iface)
                                 strncpy(aux_public_key, lua_tostring(L, -1), CRYPTO_PUBLICKEYBYTES * 2);
 
                                 iface->public_key = mzalloc(CRYPTO_PUBLICKEYBYTES);
-                                if (hex_to_bytes(aux_public_key, iface->public_key, CRYPTO_PUBLICKEYBYTES) != 0)
+                                if (hex_to_bytes_len(aux_public_key, iface->public_key, CRYPTO_PUBLICKEYBYTES) != 0)
                                 {
                                         return -1;
                                 }
@@ -468,7 +452,7 @@ static int config_encryption(lua_State *L, struct iface *iface)
                                 strncpy(aux_secret_key, lua_tostring(L, -1), CRYPTO_SECRETKEYBYTES * 2);
 
                                 iface->secret_key = mzalloc(CRYPTO_SECRETKEYBYTES);
-                                if (hex_to_bytes(aux_secret_key, iface->secret_key, CRYPTO_SECRETKEYBYTES) != 0)
+                                if (hex_to_bytes_len(aux_secret_key, iface->secret_key, CRYPTO_SECRETKEYBYTES) != 0)
                                 {
                                         return -1;
                                 }

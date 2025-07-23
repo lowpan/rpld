@@ -22,6 +22,8 @@ endif
 
 mnldep = dependency('libmnl')
 
+openssl_dep = dependency('openssl', required: true)
+
 srcs = files(
 	'rpld.c',
 	'config.c',
@@ -49,6 +51,6 @@ srcs = files(
 	'crypto/RSA/rsa.c',
 )
 
-executable('rpld', srcs, dependencies : [ evdep, luadep, mnldep ])
+executable('rpld', srcs, dependencies : [ evdep, luadep, mnldep, openssl_dep ])
 
 # vim: syntax=python

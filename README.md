@@ -49,9 +49,11 @@ Ex:
 ```
 mininet-wifi> xterm sensor1
 ps aux
-kill 9 # Random number for rpld process
+kill {id}
 rpld -C lowpan-sensor1.conf
 ```
+
+Also, the rpld processes can be killed with ```pkill -f rpld```
 
 ## Parameters
 

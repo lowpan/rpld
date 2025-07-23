@@ -19,6 +19,10 @@
 #include <stdio.h>
 
 #include <stddef.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
+#include <openssl/rsa.h>
+#include <openssl/x509.h>
 
 #include "helpers.h"
 #include "netlink.h"
@@ -869,13 +873,20 @@ void dag_build_dis_sec(struct safe_buffer *sb)
         safe_buffer_append(sb, padn_.padding, 4);
 }
 
+/**
+ * @brief This function builds the PK (public key) packet
+ * It will append the public key that is saved in the iface struct to the safe buffer.
+ * 
+ * @param sb Safe buffer to append the PK packet
+ * @param iface Interface
+ */
 void dag_build_pk(struct safe_buffer *sb, struct iface *iface)
 {
         dag_build_icmp(sb, ND_RPL_SEC_PK_EXCH);
 
         if (iface->enc_mode == ENC_MODE_RSA)
         {
-                safe_buffer_append(sb, iface->public_key, RSA_KEY_SIZE_BYTES);
+                safe_buffer_append(sb, iface->public_key, RSA_OSSL_PK_SIZE_BYTES);
         }
         else if (iface->enc_mode == ENC_MODE_KYBER)
         {
@@ -883,29 +894,96 @@ void dag_build_pk(struct safe_buffer *sb, struct iface *iface)
         }
 }
 
+/**
+ * @brief This function builds the CT (shared secret) packet
+ * It will encrypt the shared secret and then append the cipher text to the safe buffer.
+ * 
+ * @param sb Safe buffer to append the CT packet
+ * @param rec_pk Received public key
+ * @param iface Interface
+ * @param addr_to Address
+ */
 void dag_build_ct(struct safe_buffer *sb, const u_int8_t *rec_pk, struct iface *iface, char* addr_to)
 {
         dag_build_icmp(sb, ND_RPL_SEC_CT_EXCH);
 
+        flog(LOG_DEBUG, "Received the PK to encrypt SS: %s", get_hex_str(iface->public_key, RSA_OSSL_PK_SIZE_BYTES));
+
         /** Shared secret with 32 bytes for Kyber and RSA2048.
          * For RSA1024, the shared secret it will be truncated, so can be the same as 2048.
          */
-        const u_int8_t* ss = "89E9D140FD7371117BBEBCF61E4390C5";
-        // const u_int8_t* ss = gen_rdm_bytestream(32);
-        // flog(LOG_INFO, "ss: %s", get_hex_str(ss, 32));
+        // const u_int8_t* ss = "89E9D140FD7371117BBEBCF61E4390C5";
+        const u_int8_t* ss = gen_rdm_bytestream(SS_SIZE);
+        flog(LOG_INFO, "ss: %s", get_hex_str(ss, SS_SIZE));
         if (iface->enc_mode == ENC_MODE_RSA)
         {
-                memcpy(shared_secret, ss, RSA_SS_SIZE_BYTES);
+                memcpy(shared_secret, ss, SS_SIZE);
 
-                struct key_class rec_pk_class;
-                uint8_to_key_class(rec_pk, &rec_pk_class);
-                const long long *encrypted_ss = rsa_encrypt(shared_secret, RSA_SS_SIZE_BYTES, &rec_pk_class);
+                // From bytes to EVP_PK
+                EVP_PKEY *reconstructed_pkey = NULL;
+                const unsigned char *p_const = rec_pk;
+                reconstructed_pkey = d2i_PUBKEY(NULL, &p_const, RSA_OSSL_PK_SIZE_BYTES);
+                if (reconstructed_pkey == NULL) {
+                        fprintf(stderr, "Erro ao deserializar os bytes reconstruídos.\n");
+                        ERR_print_errors_fp(stderr);
+                        return;
+                }
+                BIO *bp = BIO_new_fp(stdout, BIO_NOCLOSE);
+                EVP_PKEY_print_public(bp, reconstructed_pkey, 1, NULL);
 
-                safe_buffer_append(sb, encrypted_ss, RSA_CIPHERTEXT_SIZE_BYTES);
+                // Encrypt
+                EVP_PKEY_CTX *ctx = NULL;
+                u_int8_t *encrypted_key = NULL;
+                size_t encrypted_key_len;
+
+                // --- CRIPTOGRAFIA ---
+                printf("Criptografando a chave simétrica...\n");
+
+                // 1. Cria o contexto a partir da chave pública/privada
+                ctx = EVP_PKEY_CTX_new(reconstructed_pkey, NULL);
+                if (!ctx) {
+                        ERR_print_errors_fp(stderr);
+                        return;
+                }
+
+
+                // 2. Inicializa a operação de criptografia
+                if (EVP_PKEY_encrypt_init(ctx) <= 0) {
+                        ERR_print_errors_fp(stderr);
+                        return;
+                }
+
+                // 3. DEFINE O PADDING (MUITO IMPORTANTE PARA SEGURANÇA)
+                // RSA_PKCS1_OAEP_PADDING é o recomendado.
+                if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+                        ERR_print_errors_fp(stderr);
+                        return;
+                }
+
+                // 4. Determina o tamanho do buffer de saída
+                if (EVP_PKEY_encrypt(ctx, NULL, &encrypted_key_len, ss, SS_SIZE) <= 0) {
+                        ERR_print_errors_fp(stderr);
+                        return;
+                }
+                encrypted_key = mzalloc(encrypted_key_len);
+                if (!encrypted_key) {
+                        fprintf(stderr, "Falha de alocação de memória.\n");
+                        return;
+                }
+
+                // 5. Realiza a criptografia
+                if (EVP_PKEY_encrypt(ctx, encrypted_key, &encrypted_key_len, ss, SS_SIZE) <= 0) {
+                        ERR_print_errors_fp(stderr);
+                        return;
+                }
+
+                flog(LOG_INFO, "Criptografia concluída com sucesso! Chave encriptada: %s\nCipher text: %s", get_hex_str(shared_secret, SS_SIZE), get_hex_str(encrypted_key, encrypted_key_len));
+
+                safe_buffer_append(sb, encrypted_key, encrypted_key_len);
         }
         else if (iface->enc_mode == ENC_MODE_KYBER)
         {
-                memcpy(shared_secret, ss, KYBER_SSBYTES);
+                memcpy(shared_secret, ss, SS_SIZE);
 
                 u_int8_t cipher_text[KYBER_CIPHERTEXTBYTES];
                 uint8_t coins[KYBER_SYMBYTES];
